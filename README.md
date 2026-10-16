@@ -23,7 +23,28 @@
 | `<leader>sn` | Snacks picker 搜索位置（`<C-d>` 删除） |
 | `<leader>bm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `q` 关闭 |
 
-键位集中在 `lua/waymark/init.lua` 的 `setup()`，可通过 `setup({ keys = {...} })` 覆盖。
+### 自定义键位
+
+所有键位集中在插件的 `setup()`，通过 `keys` 表覆盖，未写的保持默认；单项设为 `false` 可禁用该键：
+
+```lua
+{
+  "Michael-Zs/waymark.nvim",
+  lazy = false,
+  opts = {
+    keys = {
+      add = "<leader>x",  -- 修改添加键
+      picker = false,     -- 禁用 picker 键，需要时用 :lua require("waymark.picker").open()
+      -- prev / next / manager 同理
+    },
+  },
+  config = function(_, opts)
+    require("waymark").setup(opts)
+  end,
+}
+```
+
+改完重启或 `:Lazy reload waymark.nvim` 生效。
 
 ## 设计
 
