@@ -16,10 +16,16 @@ local function entry(i, loc)
       where,
       loc.label or ""
     ),
-    loc = loc,
+    -- snacks.picker 标准字段：preview / resolve 需要
+    -- 注意：不能把 waymark location 放进 `loc` 字段（snacks 保留给 LSP location）
+    file = loc.file,
+    pos = { loc.line, loc.col - 1 }, -- { 1-based line, 0-based byte col }
+    waymark = loc,
   }
 end
 
+---打开 picker；返回 snacks Picker 实例（便于测试/扩展）
+---@return table|nil
 function M.open()
   store.ensure_loaded()
   local locs = store.list()
@@ -39,22 +45,22 @@ function M.open()
     items[i] = entry(i, loc)
   end
 
-  Snacks.picker({
+  return Snacks.picker({
     title = " Waymarks ",
     items = items,
     confirm = function(picker, item)
       picker:close()
       if item then
         vim.schedule(function()
-          navigation.jump(item.loc)
+          navigation.jump(item.waymark)
         end)
       end
     end,
     actions = {
       waymark_delete = function(picker, item)
         if item then
-          store.remove(item.loc.id)
-          vim.notify("[waymark] 已删除: " .. item.loc.id)
+          store.remove(item.waymark.id)
+          vim.notify("[waymark] 已删除: " .. item.waymark.id)
         end
         picker:close()
       end,
