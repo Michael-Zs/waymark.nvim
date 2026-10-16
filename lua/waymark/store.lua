@@ -188,7 +188,8 @@ function M.attach_extmark(loc, bufnr)
   end
 end
 
----为指定 buffer 的所有 location（重新）挂 extmark
+---为指定 buffer 的所有 location（重新）挂 extmark。
+---已有有效 extmark 的跳过（避免重挂抹掉 extmark 对代码编辑的漂移跟踪）。
 function M.sync_buffer(bufnr)
   if not vim.api.nvim_buf_is_loaded(bufnr) then
     return
@@ -199,7 +200,15 @@ function M.sync_buffer(bufnr)
   end
   for _, loc in ipairs(state.locations) do
     if loc.file == path then
-      M.attach_extmark(loc, bufnr)
+      local attached = false
+      if loc.ext and loc.ext.buf == bufnr then
+        local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, loc.ext.id, {})
+        -- 不存在的 extmark 返回 {-1, -1}
+        attached = ok and type(pos) == "table" and pos[1] ~= nil and pos[1] >= 0
+      end
+      if not attached then
+        M.attach_extmark(loc, bufnr)
+      end
     end
   end
 end

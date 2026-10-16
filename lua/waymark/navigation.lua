@@ -46,8 +46,24 @@ function M.jump(loc)
   if line > count then
     line = count
   end
-  pcall(vim.api.nvim_win_set_cursor, 0, { line, math.max(0, col - 1) })
-  vim.cmd("normal! zv") -- 展开光标处 fold
+
+  local win = vim.api.nvim_get_current_win()
+  local function place()
+    pcall(vim.api.nvim_win_set_cursor, win, { line, math.max(0, col - 1) })
+    pcall(vim.api.nvim_win_call, win, function()
+      vim.cmd("normal! zv") -- 展开光标处 fold
+    end)
+  end
+
+  place()
+  -- 关键：再 schedule 一次最终定位。vim.schedule 队列 FIFO，
+  -- 必然排在 BufWinEnter 触发的异步 view 恢复（如 mkview/loadview）之后，
+  -- 覆盖它们对光标的改动。
+  vim.schedule(function()
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
+      place()
+    end
+  end)
   return true
 end
 
