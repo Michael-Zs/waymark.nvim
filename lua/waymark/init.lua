@@ -21,7 +21,7 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager} }
+---@param opts table|nil { keys = {add,prev,next,picker,manager} }，单项设 false 可禁用该键
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
@@ -35,6 +35,9 @@ function M.setup(opts)
   store.init()
 
   local function map(key, fn, desc)
+    if not key then -- false/nil = 禁用该键
+      return
+    end
     vim.keymap.set("n", key, fn, { desc = desc })
   end
 
