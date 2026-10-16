@@ -18,9 +18,9 @@
 
 | 键 | 功能 |
 |---|---|
-| `<leader>A` | 添加当前位置（重复位置不重复添加） |
-| `[W` / `]W` | 上一个 / 下一个位置（跨文件，首尾循环） |
-| `<leader>fw` | Snacks picker 搜索位置（`<C-d>` 删除） |
+| `<leader>z` | 添加当前位置（重复位置不重复添加） |
+| `[z` / `]z` | 上一个 / 下一个位置（跨文件，首尾循环） |
+| `<leader>sn` | Snacks picker 搜索位置（`<C-d>` 删除） |
 | `<leader>bm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `q` 关闭 |
 
 键位集中在 `lua/waymark/init.lua` 的 `setup()`，可通过 `setup({ keys = {...} })` 覆盖。

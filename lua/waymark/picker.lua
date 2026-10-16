@@ -30,7 +30,7 @@ function M.open()
   store.ensure_loaded()
   local locs = store.list()
   if #locs == 0 then
-    vim.notify("[waymark] 列表为空，先用 <leader>A 添加位置", vim.log.levels.INFO)
+    vim.notify("[waymark] 列表为空，先用 <leader>z 添加位置", vim.log.levels.INFO)
     return
   end
 
