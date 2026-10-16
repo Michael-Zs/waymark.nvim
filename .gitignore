@@ -1,3 +1,2 @@
-.tmp-smoke/
-.tmp-ui/
+.tmp*/
 *.log
