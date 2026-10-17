@@ -1,4 +1,4 @@
--- 跳转：jump / next / previous，循环遍历 + cursor 恢复。
+-- 跳转：jump / next / previous / goto_index（<leader>1..5 数字直跳），循环遍历 + cursor 恢复。
 
 local store = require("waymark.store")
 
@@ -113,6 +113,22 @@ end
 
 function M.previous()
   M.step(-1)
+end
+
+---跳转到列表中第 n 个 location（1-based，即 add 时提示的编号 / manager 左列数字）
+---@param n integer
+---@return boolean ok
+function M.goto_index(n)
+  n = math.floor(tonumber(n) or 0)
+  store.ensure_loaded()
+  local locs = store.list()
+  local loc = locs[n]
+  if not loc then
+    vim.notify(("[waymark] 没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
+    return false
+  end
+  last_index = n -- 后续 next/prev 从这里继续
+  return M.jump(loc)
 end
 
 return M

@@ -107,6 +107,19 @@ if phase == 1 then
   check("rename 生效", ordered[1].label == "RENAMED")
   check("reorder 生效（id 不变）", ordered[3].id == moved_id)
 
+  -- goto_index 数字直跳 ------------------------------------------------------
+  check("goto_index(3) → a:8", nav.goto_index(3)
+    and vim.fs.basename(store.buf_path(0)) == "a.py"
+    and vim.api.nvim_win_get_cursor(0)[1] == 8)
+  check("goto_index(2) → b:3", nav.goto_index(2)
+    and vim.fs.basename(store.buf_path(0)) == "b.py"
+    and vim.api.nvim_win_get_cursor(0)[1] == 3)
+  check("goto_index(99) 超出范围返回 false", nav.goto_index(99) == false)
+  -- goto_index 后 next 应从该位置继续：当前 b:3(idx2) → next → idx3(a:8)
+  nav.step(1)
+  check("goto_index 后 step(1) 接续 a:8", store.buf_path(0) == tmp .. "/a.py"
+    and vim.api.nvim_win_get_cursor(0)[1] == 8)
+
   -- manager popup 冒烟 -------------------------------------------------------
   local ui = require("waymark.ui")
   ui.open()

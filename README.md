@@ -20,6 +20,7 @@
 |---|---|
 | `<leader>z` | 添加当前位置（重复位置不重复添加） |
 | `[z` / `]z` | 上一个 / 下一个位置（跨文件，首尾循环） |
+| `<leader>1..5` | 直跳第 1-5 个位置（按下立即跳转）。只占 1..5，`6..9` 不覆盖（留给 LazyVim 的 buffer 键） |
 | `<leader>sn` | Snacks picker 搜索位置（`<C-d>` 删除） |
 | `<leader>bm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `q` 关闭 |
 
@@ -36,6 +37,7 @@
       add = "<leader>x",  -- 修改添加键
       picker = false,     -- 禁用 picker 键，需要时用 :lua require("waymark.picker").open()
       -- prev / next / manager 同理
+      jump_prefix = false, -- 禁用 <leader>1..5 数字直跳；也可换成其他前缀，如 "g"
     },
   },
   config = function(_, opts)
@@ -58,6 +60,6 @@
 ## API
 
 ```lua
-require("waymark").add() / .next() / .prev()
+require("waymark").add() / .next() / .prev() / .goto_index(n)
 require("waymark.store"):list/get/add/remove/rename/move/save
 ```

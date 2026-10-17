@@ -3,12 +3,14 @@
 -- 所有 keymap 集中在 setup() 中配置，如需调整传入:
 --   require("waymark").setup({
 --     keys = { add = "<leader>z", prev = "[z", next = "]z",
---              picker = "<leader>sn", manager = "<leader>bm" },
+--              picker = "<leader>sn", manager = "<leader>bm",
+--              jump_prefix = "<leader>" },
 --   })
 --
 -- 公共 API:
 --   require("waymark").add()        添加当前位置
 --   .next() / .prev()               下一个 / 上一个（循环）
+--   .goto_index(n)                  直跳第 n 个（<leader>1..5 的底层）
 --   require("waymark.picker").open()  搜索
 --   require("waymark.ui").open()      管理 popup
 --   require("waymark.store")          数据层（list/get/remove/rename/move/...）
@@ -21,7 +23,9 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager} }，单项设 false 可禁用该键
+---@param opts table|nil { keys = {add,prev,next,picker,manager,jump_prefix} }，
+---单项设 false 可禁用该键；jump_prefix 生成 <prefix>1..5 的数字直跳键（固定 1..5，
+---6..9 不占用，留给 LazyVim 等其他插件的 buffer 键）
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
@@ -30,6 +34,7 @@ function M.setup(opts)
     next = "]z",
     picker = "<leader>sn",
     manager = "<leader>bm",
+    jump_prefix = "<leader>",
   }, opts.keys or {})
 
   store.init()
@@ -50,6 +55,14 @@ function M.setup(opts)
   map(keys.manager, function()
     require("waymark.ui").open()
   end, "Waymark manager")
+
+  if keys.jump_prefix then -- <prefix>1..5 → 直跳第 N 个，按下立即跳转
+    for d = 1, 5 do
+      map(keys.jump_prefix .. d, function()
+        navigation.goto_index(d)
+      end, "Waymark jump #" .. d)
+    end
+  end
 
   vim.api.nvim_set_hl(0, "WaymarkMissing", { default = true, link = "DiagnosticError" })
 
@@ -95,6 +108,11 @@ end
 
 function M.previous()
   navigation.previous()
+end
+
+---直跳第 n 个 waymark（1-based，编号同 add 提示 / manager 左列）
+function M.goto_index(n)
+  return navigation.goto_index(n)
 end
 
 return M
