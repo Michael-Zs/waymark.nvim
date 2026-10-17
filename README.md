@@ -1,8 +1,10 @@
 # waymark.nvim
 
-轻量 Location List：基本单位是 **file + exact cursor position**（同一文件可有多个位置）。
+English | [简体中文](README.zh-CN.md)
 
-## 安装（lazy.nvim / LazyVim）
+A lightweight location list where the basic unit is a **file + exact cursor position** (a single file can hold multiple marks).
+
+## Install (lazy.nvim / LazyVim)
 
 ```lua
 {
@@ -16,17 +18,17 @@
 
 ## Keymaps
 
-| 键 | 功能 |
+| Key | Action |
 |---|---|
-| `<leader>z` | 添加当前位置（重复位置不重复添加） |
-| `[z` / `]z` | 上一个 / 下一个位置（跨文件，首尾循环） |
-| `<leader>1..5` | 直跳第 1-5 个位置（按下立即跳转）。只占 1..5，`6..9` 不覆盖（留给 LazyVim 的 buffer 键） |
-| `<leader>sn` | Snacks picker 搜索位置（`<C-d>` 删除） |
-| `<leader>bm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `q` 关闭 |
+| `<leader>z` | Add current position (duplicate positions are skipped) |
+| `[z` / `]z` | Previous / next mark (across files, wraps around) |
+| `<leader>1..5` | Jump directly to mark 1-5 (jumps immediately on keypress). Only claims 1..5; `6..9` are left free (reserved for LazyVim buffer keys) |
+| `<leader>sn` | Search marks with Snacks picker (`<C-d>` to delete) |
+| `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `q` close |
 
-### 自定义键位
+### Custom keymaps
 
-所有键位集中在插件的 `setup()`，通过 `keys` 表覆盖，未写的保持默认；单项设为 `false` 可禁用该键：
+All keymaps live in the plugin's `setup()` and are overridden via the `keys` table; anything unspecified keeps its default. Set an entry to `false` to disable that key:
 
 ```lua
 {
@@ -34,10 +36,10 @@
   lazy = false,
   opts = {
     keys = {
-      add = "<leader>x",  -- 修改添加键
-      picker = false,     -- 禁用 picker 键，需要时用 :lua require("waymark.picker").open()
-      -- prev / next / manager 同理
-      jump_prefix = false, -- 禁用 <leader>1..5 数字直跳；也可换成其他前缀，如 "g"
+      add = "<leader>x",  -- change the add key
+      picker = false,     -- disable the picker key; open it via :lua require("waymark.picker").open()
+      -- prev / next / manager work the same way
+      jump_prefix = false, -- disable <leader>1..5 direct jumps; or set another prefix, e.g. "g"
     },
   },
   config = function(_, opts)
@@ -46,16 +48,16 @@
 }
 ```
 
-改完重启或 `:Lazy reload waymark.nvim` 生效。
+Restart Neovim or run `:Lazy reload waymark.nvim` for changes to take effect.
 
-## 设计
+## Design
 
-- **project-local**：`vim.fs.root(0, {".git"})`，fallback `cwd`；每个 project 一个 JSON 文件
-- **持久化**：`stdpath("data")/waymark/<sha256(root)>.json`，结构 `{ id, file, line, col, label }`
-  （file 绝对路径，line/col 1-based，id 稳定不随排序变化）
-- **代码移动跟随**：运行时用 extmark 跟随插入/删除，保存/跳转前回写最新位置
-- **容错**：JSON 损坏、文件缺失等只影响单条 location，失效项在 picker/manager 中显示 `[missing]`，可删除
-- **依赖**：无硬依赖；picker 需要 snacks.nvim（LazyVim 自带），popup manager 用原生 floating window
+- **Project-local**: root is `vim.fs.root(0, {".git"})` with `cwd` fallback; one JSON file per project
+- **Persistence**: `stdpath("data")/waymark/<sha256(root)>.json`, structure `{ id, file, line, col, label }`
+  (absolute file path, 1-based line/col, ids are stable and unaffected by reordering)
+- **Follows code movement**: extmarks track insertions/deletions at runtime, and the latest positions are written back before save/jump
+- **Fault tolerant**: corrupted JSON, missing files, etc. only affect a single location; invalid entries show `[missing]` in the picker/manager and can be deleted
+- **Dependencies**: none required; the picker needs snacks.nvim (bundled with LazyVim), the popup manager uses a native floating window
 
 ## API
 
