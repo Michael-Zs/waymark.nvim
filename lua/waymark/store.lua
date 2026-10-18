@@ -296,6 +296,19 @@ function M.add(file, line, col, label)
   return loc, true
 end
 
+---更新 location 的位置和 label，保留稳定 id / 列表顺序，并把 extmark 移到当前 buffer。
+---@return boolean ok
+function M.update(id, file, line, col, label)
+  local loc = M.get(id)
+  if not loc then
+    return false
+  end
+  loc.file, loc.line, loc.col, loc.label = file, line, col, label
+  M.attach_extmark(loc, vim.api.nvim_get_current_buf())
+  M.save()
+  return true
+end
+
 ---@return boolean removed
 function M.remove(id)
   local i = M.index_of(id)

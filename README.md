@@ -23,8 +23,11 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `<leader>z` | Add current position (duplicate positions are skipped) |
 | `[z` / `]z` | Previous / next mark (across files, wraps around) |
 | `<leader>1..5` | Jump directly to mark 1-5 (jumps immediately on keypress). Only claims 1..5; `6..9` are left free (reserved for LazyVim buffer keys) |
+| `V` then `<leader>1..5` | Update the existing mark 1-5 to the selected line's cursor position, then leave Visual mode |
 | `<leader>sn` | Search marks with Snacks picker (`<C-d>` to delete) |
 | `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `q` close |
+
+To replace mark 1, move to the new line, press `V`, then `<leader>1`. The mark keeps its ID and list order, refreshes its label from the new line, and is saved immediately. Visual updates use the current cursor position (also for multi-line selections); a missing mark number is reported without adding an entry.
 
 ### Custom keymaps
 
@@ -39,7 +42,7 @@ All keymaps live in the plugin's `setup()` and are overridden via the `keys` tab
       add = "<leader>x",  -- change the add key
       picker = false,     -- disable the picker key; open it via :lua require("waymark.picker").open()
       -- prev / next / manager work the same way
-      jump_prefix = false, -- disable <leader>1..5 direct jumps; or set another prefix, e.g. "g"
+      jump_prefix = false, -- disable numeric jumps and Visual updates; or use another prefix, e.g. "g"
     },
   },
   config = function(_, opts)
@@ -63,5 +66,6 @@ Restart Neovim or run `:Lazy reload waymark.nvim` for changes to take effect.
 
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
-require("waymark.store"):list/get/add/remove/rename/move/save
+require("waymark").update_index(n) -- replace mark n with the current position
+require("waymark.store"):list/get/add/update/remove/rename/move/save
 ```

@@ -23,8 +23,11 @@
 | `<leader>z` | 添加当前位置（重复位置不重复添加） |
 | `[z` / `]z` | 上一个 / 下一个位置（跨文件，首尾循环） |
 | `<leader>1..5` | 直跳第 1-5 个位置（按下立即跳转）。只占 1..5，`6..9` 不覆盖（留给 LazyVim 的 buffer 键） |
+| `V` 后按 `<leader>1..5` | 将已有的第 1-5 个位置更新为所选行的光标位置，并退出可视模式 |
 | `<leader>sn` | Snacks picker 搜索位置（`<C-d>` 删除） |
 | `<leader>bm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `q` 关闭 |
+
+例如，移动到新的一行，按 `V` 再按 `<leader>1`，即可替换第 1 个位置。更新会保留 ID 和列表顺序，以新行文本刷新标签，并立即保存。可视模式更新使用当前光标位置（多行选择也一样）；编号不存在时会提示，不会新增条目。
 
 ### 自定义键位
 
@@ -39,7 +42,7 @@
       add = "<leader>x",  -- 修改添加键
       picker = false,     -- 禁用 picker 键，需要时用 :lua require("waymark.picker").open()
       -- prev / next / manager 同理
-      jump_prefix = false, -- 禁用 <leader>1..5 数字直跳；也可换成其他前缀，如 "g"
+      jump_prefix = false, -- 禁用数字直跳和可视模式更新；也可换成其他前缀，如 "g"
     },
   },
   config = function(_, opts)
@@ -63,5 +66,6 @@
 
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
-require("waymark.store"):list/get/add/remove/rename/move/save
+require("waymark").update_index(n) -- 用当前位置替换第 n 个位置
+require("waymark.store"):list/get/add/update/remove/rename/move/save
 ```
