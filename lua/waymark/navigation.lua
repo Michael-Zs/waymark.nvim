@@ -48,20 +48,20 @@ function M.jump(loc)
   end
 
   local win = vim.api.nvim_get_current_win()
-  local function place()
-    pcall(vim.api.nvim_win_set_cursor, win, { line, math.max(0, col - 1) })
-    pcall(vim.api.nvim_win_call, win, function()
-      vim.cmd("normal! zv") -- 展开光标处 fold
-    end)
-  end
+  pcall(vim.api.nvim_win_set_cursor, win, { line, math.max(0, col - 1) })
+  vim.cmd("normal! zv") -- 展开光标处 fold
 
-  place()
-  -- 关键：再 schedule 一次最终定位。vim.schedule 队列 FIFO，
-  -- 必然排在 BufWinEnter 触发的异步 view 恢复（如 mkview/loadview）之后，
-  -- 覆盖它们对光标的改动。
+  -- view 恢复可能重新关闭目标折叠；仅在仍停留于本次跳转时补一次展开。
+  -- 保存实际光标（列号可能被截到行尾），延迟回调不再重新定位。
+  local cursor = vim.api.nvim_win_get_cursor(win)
   vim.schedule(function()
-    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf then
-      place()
+    if
+      vim.api.nvim_win_is_valid(win)
+      and vim.api.nvim_get_current_win() == win
+      and vim.api.nvim_win_get_buf(win) == buf
+      and vim.deep_equal(vim.api.nvim_win_get_cursor(win), cursor)
+    then
+      vim.cmd("normal! zv")
     end
   end)
   return true
