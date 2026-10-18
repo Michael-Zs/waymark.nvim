@@ -83,7 +83,7 @@ test("跨文件替换移除旧 extmark，跟随新文件编辑并立即持久化
   store.save()
   eq(loc.line, 13)
   local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
-  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).locations
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).symbols.q
   eq({ saved[1].id, saved[1].file, saved[1].line, saved[1].col }, { id, target, 13, 7 })
   vim.api.nvim_set_current_buf(old_ext.buf)
   press(" 1")
@@ -132,7 +132,7 @@ test("空列表可直接用数字键依次创建 1-9 项并持久化", function(
     eq(vim.api.nvim_win_get_cursor(0), { n + 10, 4 })
   end
   local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
-  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).locations
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).symbols.q
   eq(#saved, 9)
   for n, loc in ipairs(saved) do
     eq({ loc.id, loc.file, loc.line, loc.col }, { store.list()[n].id, source, n + 10, 5 })
@@ -155,8 +155,8 @@ test("空列表直接设置 5，普通模式按 5 可跳转，重复设置只更
   local locs = store.list()
   eq(#locs, 1)
   eq({ locs[1].index, locs[1].file, locs[1].line, locs[1].col }, { 5, source, 12, 5 })
-  eq(messages[1], "Waymark 5 added: source.txt:12")
-  eq(messages[2], "Waymark 5 updated: source.txt:12")
+  eq(messages[1], "[waymark:q] Waymark 5 added: source.txt:12")
+  eq(messages[2], "[waymark:q] Waymark 5 updated: source.txt:12")
   for n = 1, 4 do
     eq(store.get_index(n), nil)
   end
@@ -325,7 +325,7 @@ test("manager U 填补编号空缺，保留条目和光标并立即持久化", f
   eq(vim.api.nvim_win_get_cursor(win)[1], 2)
 
   local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
-  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).locations
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).symbols.q
   local expected = vim.deepcopy(before)
   for _, loc in ipairs(expected) do
     loc.ext = nil
@@ -396,10 +396,11 @@ test("旧版持久化数据按原顺序迁移编号并保留 id/标签", functio
   vim.api.nvim_win_set_cursor(0, { 8, 0 })
   press("V 5")
   local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
-  eq(saved.version, 2)
-  eq(#saved.locations, 3)
-  eq(saved.locations[3].index, 5)
-  eq(saved.locations[1].id, "legacy_first")
+  eq(saved.version, 3)
+  eq(saved.active_symbol, "q")
+  eq(#saved.symbols.q, 3)
+  eq(saved.symbols.q[3].index, 5)
+  eq(saved.symbols.q[1].id, "legacy_first")
 end)
 
 test("无效编号不会创建条目", function()

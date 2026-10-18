@@ -69,7 +69,7 @@ local function win_config(n_items, text_width)
   return {
     relative = "editor",
     border = "rounded",
-    title = " Waymarks ",
+    title = " Waymarks [" .. store.current_symbol() .. "] ",
     title_pos = "center",
     width = width,
     height = height,
@@ -130,7 +130,7 @@ local function delete_current()
   local loc = locs[idx]
   if loc then
     store.remove(loc.id)
-    vim.notify("[waymark] 已删除 " .. vim.fs.basename(loc.file) .. ":" .. loc.line)
+    store.notify("已删除 " .. vim.fs.basename(loc.file) .. ":" .. loc.line)
   end
   if #store.list() == 0 then
     M.close()
@@ -208,12 +208,13 @@ end
 
 function M.open()
   store.ensure_loaded()
+  store.pull_extmarks()
   if M.is_open() then
     M.close()
   end
   local locs = store.list()
   if #locs == 0 then
-    vim.notify("[waymark] 列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
+    store.notify("列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
     return
   end
 
@@ -233,6 +234,16 @@ function M.open()
   vim.wo[win].signcolumn = "no"
   vim.wo[win].foldcolumn = "0"
   vim.api.nvim_win_set_cursor(win, { 1, 0 })
+  vim.api.nvim_create_autocmd("User", {
+    pattern = "WaymarkSymbolChanged",
+    group = vim.api.nvim_create_augroup("waymark-ui", { clear = true }),
+    callback = function()
+      if M.is_open() then
+        store.pull_extmarks()
+        refresh()
+      end
+    end,
+  })
 
   local function map(key, fn, desc)
     vim.keymap.set("n", key, fn, { buffer = buf, desc = "Waymark: " .. desc, nowait = true })

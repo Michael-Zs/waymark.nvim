@@ -4,14 +4,18 @@ local store = require("waymark.store")
 
 local M = {}
 
-local last_index = 0 -- 上一次 step 跳到的位置（1-based），current 检测失败时使用
+local last_indices = {} -- 每个 project / 分组独立记录上一次 step 位置
+
+local function context()
+  return store.project_root() .. ":" .. store.current_symbol()
+end
 
 ---跳转到 location。文件不存在时 notify 并安全返回 false。
 ---@param loc table
 ---@return boolean ok
 function M.jump(loc)
   if not store.file_exists(loc.file) then
-    vim.notify("[waymark] File not found: " .. loc.file, vim.log.levels.WARN)
+    store.notify("File not found: " .. loc.file, vim.log.levels.WARN)
     return false
   end
 
@@ -98,12 +102,13 @@ function M.step(delta)
   local locs = store.list()
   local n = #locs
   if n == 0 then
-    vim.notify("[waymark] 列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
+    store.notify("列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
     return
   end
-  local cur = current_index() or last_index
+  store.pull_extmarks()
+  local cur = current_index() or last_indices[context()] or 0
   local idx = math.floor((cur - 1 + delta) % n) + 1 -- lua % 保证循环
-  last_index = idx
+  last_indices[context()] = idx
   M.jump(locs[idx])
 end
 
@@ -124,12 +129,12 @@ function M.goto_index(n)
   local locs = store.list()
   local loc = store.get_index(n)
   if not loc then
-    vim.notify(("[waymark] 没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
+    store.notify(("没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
     return false
   end
   for i, entry in ipairs(locs) do
     if entry.id == loc.id then
-      last_index = i -- step 遍历实际条目，跳过空槽位
+      last_indices[context()] = i -- step 遍历实际条目，跳过空槽位
       break
     end
   end

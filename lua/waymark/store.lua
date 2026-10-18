@@ -18,10 +18,13 @@ local M = {}
 
 local DATA_DIR = vim.fn.stdpath("data") .. "/waymark"
 local ns = vim.api.nvim_create_namespace("waymark")
+local symbols = { "q", "w", "e", "r" }
 
 local state = {
   root = nil, -- 当前 project root（绝对路径）
   locations = {}, -- 按 index 排序的连续 location 数组，不存放空槽位
+  symbol = "q",
+  symbols = {}, -- 所有分组都保留 extmark，仅当前分组显示 sign
 }
 
 --==========================================================================
@@ -43,7 +46,18 @@ end
 
 ---project 标识：git root，否则 cwd
 function M.project_root()
+  if vim.bo.buftype ~= "" and state.root then
+    return state.root
+  end
   return vim.fs.normalize(vim.fs.root(0, { ".git" }) or vim.uv.cwd())
+end
+
+function M.current_symbol()
+  return state.symbol
+end
+
+function M.notify(message, level)
+  vim.notify(("[waymark:%s] %s"):format(state.symbol, message), level)
 end
 
 function M.file_exists(path)
@@ -101,8 +115,33 @@ local function sanitize(loc)
   }
 end
 
-function M.load()
+local function sanitize_locations(entries)
   local locations = {}
+  local used = {}
+  for _, loc in ipairs(type(entries) == "table" and entries or {}) do
+    local s = sanitize(loc)
+    if s then
+      -- 旧格式没有 index，沿用原列表编号；损坏的重复编号分配到空槽位。
+      s.index = s.index or (#locations + 1)
+      while used[s.index] do
+        s.index = s.index + 1
+      end
+      used[s.index] = true
+      table.insert(locations, s)
+    end
+  end
+  table.sort(locations, function(a, b)
+    return a.index < b.index
+  end)
+  return locations
+end
+
+function M.load()
+  state.symbol = "q"
+  state.symbols = {}
+  for _, symbol in ipairs(symbols) do
+    state.symbols[symbol] = {}
+  end
   local path = data_file(state.root)
   local ok, content = pcall(function()
     local f = io.open(path, "r")
@@ -115,22 +154,19 @@ function M.load()
   end)
   if ok and content and content ~= "" then
     local decoded, data = pcall(vim.json.decode, content)
-    if decoded and type(data) == "table" and type(data.locations) == "table" then
-      local used = {}
-      for _, loc in ipairs(data.locations) do
-        local s = sanitize(loc)
-        if s then
-          -- 旧格式没有 index，沿用原列表编号；损坏的重复编号分配到空槽位。
-          s.index = s.index or (#locations + 1)
-          while used[s.index] do
-            s.index = s.index + 1
-          end
-          used[s.index] = true
-          table.insert(locations, s)
+    if decoded and type(data) == "table" then
+      if type(data.symbols) == "table" then
+        for _, symbol in ipairs(symbols) do
+          state.symbols[symbol] = sanitize_locations(data.symbols[symbol])
         end
+        if state.symbols[data.active_symbol] then
+          state.symbol = data.active_symbol
+        end
+      else
+        state.symbols.q = sanitize_locations(data.locations)
       end
     elseif not decoded then
-      vim.notify("[waymark] 数据文件损坏，已忽略: " .. path, vim.log.levels.WARN)
+      M.notify("数据文件损坏，已忽略: " .. path, vim.log.levels.WARN)
     end
   end
   -- 重载或切换 project 时清理旧标记，避免遗留 gutter 编号。
@@ -139,27 +175,30 @@ function M.load()
       vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
     end
   end
-  state.locations = locations
-  sort_locations()
+  state.locations = state.symbols[state.symbol]
 end
 
 ---把 extmark 最新位置回写 location，然后写盘
 function M.save()
   M.pull_extmarks()
   local payload = {
-    version = 2,
+    version = 3,
     root = state.root,
-    locations = {},
+    active_symbol = state.symbol,
+    symbols = {},
   }
-  for i, loc in ipairs(state.locations) do
-    payload.locations[i] = {
-      id = loc.id,
-      index = loc.index,
-      file = loc.file,
-      line = loc.line,
-      col = loc.col,
-      label = loc.label,
-    }
+  for _, symbol in ipairs(symbols) do
+    payload.symbols[symbol] = {}
+    for i, loc in ipairs(state.symbols[symbol] or {}) do
+      payload.symbols[symbol][i] = {
+        id = loc.id,
+        index = loc.index,
+        file = loc.file,
+        line = loc.line,
+        col = loc.col,
+        label = loc.label,
+      }
+    end
   end
   local ok, encoded = pcall(vim.json.encode, payload)
   if not ok then
@@ -173,7 +212,7 @@ function M.save()
     f:close()
   end)
   if not ok_w then
-    vim.notify("[waymark] 无法写入 " .. path .. ": " .. tostring(err), vim.log.levels.WARN)
+    M.notify("无法写入 " .. path .. ": " .. tostring(err), vim.log.levels.WARN)
   end
 end
 
@@ -203,6 +242,9 @@ local function detach_extmark(loc)
 end
 
 local function sign_options(loc)
+  if M.get(loc.id) ~= loc then
+    return {}
+  end
   return {
     -- 原生 sign 最多占两列；大编号仍保留完整位置跟踪。
     sign_text = loc.index <= 99 and tostring(loc.index) or "++",
@@ -213,17 +255,36 @@ end
 
 ---编号变化时原地更新 sign，使用 extmark 的最新位置，避免回退代码编辑后的位移。
 local function refresh_signs()
-  for _, loc in ipairs(state.locations) do
-    if loc.ext and vim.api.nvim_buf_is_loaded(loc.ext.buf) then
-      local pos = vim.api.nvim_buf_get_extmark_by_id(loc.ext.buf, ns, loc.ext.id, {})
-      if pos[1] and pos[1] >= 0 then
-        local opts = sign_options(loc)
-        opts.id = loc.ext.id
-        opts.strict = false
-        vim.api.nvim_buf_set_extmark(loc.ext.buf, ns, pos[1], pos[2], opts)
+  for _, locations in pairs(state.symbols) do
+    for _, loc in ipairs(locations) do
+      if loc.ext and vim.api.nvim_buf_is_loaded(loc.ext.buf) then
+        local pos = vim.api.nvim_buf_get_extmark_by_id(loc.ext.buf, ns, loc.ext.id, {})
+        if pos[1] and pos[1] >= 0 then
+          local opts = sign_options(loc)
+          opts.id = loc.ext.id
+          opts.strict = false
+          vim.api.nvim_buf_set_extmark(loc.ext.buf, ns, pos[1], pos[2], opts)
+        end
       end
     end
   end
+end
+
+---切换独立分组，保留所有 extmark 的位置跟踪。
+function M.select_symbol(symbol)
+  M.ensure_loaded()
+  if not state.symbols[symbol] then
+    M.notify("未知分组: " .. tostring(symbol), vim.log.levels.WARN)
+    return false
+  end
+  if symbol ~= state.symbol then
+    state.symbol = symbol
+    state.locations = state.symbols[symbol]
+    refresh_signs()
+    M.save()
+    vim.api.nvim_exec_autocmds("User", { pattern = "WaymarkSymbolChanged", data = { symbol = symbol } })
+  end
+  return true
 end
 
 ---为单个 location 挂带编号 sign 的 extmark（buffer 内代码插入/删除时位置自动跟随）
@@ -249,16 +310,18 @@ function M.sync_buffer(bufnr)
   if not path then
     return
   end
-  for _, loc in ipairs(state.locations) do
-    if loc.file == path then
-      local attached = false
-      if loc.ext and loc.ext.buf == bufnr then
-        local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, loc.ext.id, {})
-        -- 不存在的 extmark 返回 {-1, -1}
-        attached = ok and type(pos) == "table" and pos[1] ~= nil and pos[1] >= 0
-      end
-      if not attached then
-        M.attach_extmark(loc, bufnr)
+  for _, locations in pairs(state.symbols) do
+    for _, loc in ipairs(locations) do
+      if loc.file == path then
+        local attached = false
+        if loc.ext and loc.ext.buf == bufnr then
+          local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, loc.ext.id, {})
+          -- 不存在的 extmark 返回 {-1, -1}
+          attached = ok and type(pos) == "table" and pos[1] ~= nil and pos[1] >= 0
+        end
+        if not attached then
+          M.attach_extmark(loc, bufnr)
+        end
       end
     end
   end
@@ -274,11 +337,13 @@ end
 
 ---把所有仍有效的 extmark 位置回写到 location（保存/跳转前调用）
 function M.pull_extmarks()
-  for _, loc in ipairs(state.locations) do
-    if loc.ext and vim.api.nvim_buf_is_valid(loc.ext.buf) then
-      local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, loc.ext.buf, ns, loc.ext.id, {})
-      if ok and type(pos) == "table" and pos[1] then
-        loc.line, loc.col = pos[1] + 1, pos[2] + 1
+  for _, locations in pairs(state.symbols) do
+    for _, loc in ipairs(locations) do
+      if loc.ext and vim.api.nvim_buf_is_valid(loc.ext.buf) then
+        local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, loc.ext.buf, ns, loc.ext.id, {})
+        if ok and type(pos) == "table" and pos[1] and pos[1] >= 0 then
+          loc.line, loc.col = pos[1] + 1, pos[2] + 1
+        end
       end
     end
   end
