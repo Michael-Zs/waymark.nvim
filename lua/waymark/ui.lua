@@ -4,6 +4,7 @@
 --   j/k      移动
 --   <CR>     跳转并关闭
 --   dd       删除当前行
+--   C        清空当前分组
 --   r        重命名 label
 --   J / K    与下/上面对调（排序）
 --   U        从 1 连续编号，填补空缺
@@ -253,6 +254,11 @@ function M.open()
   map("<Esc>", M.close, "close")
   map("<CR>", jump_current, "jump")
   map("dd", delete_current, "delete")
+  map("C", function()
+    local count = store.clear()
+    M.close()
+    store.notify(("已清空当前分组（删除 %d 条）"):format(count), vim.log.levels.INFO)
+  end, "clear current set")
   map("r", rename_current, "rename")
   map("J", function()
     move_current(1)

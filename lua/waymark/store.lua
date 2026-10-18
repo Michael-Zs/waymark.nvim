@@ -469,6 +469,21 @@ function M.remove(id)
   return true
 end
 
+---清空当前分组，移除其所有 extmark 并一次性保存。
+---@return integer removed
+function M.clear()
+  local count = #state.locations
+  if count == 0 then
+    return 0
+  end
+  for i = count, 1, -1 do
+    detach_extmark(state.locations[i])
+    state.locations[i] = nil
+  end
+  M.save()
+  return count
+end
+
 ---修改 label（label 为空串/nil 时清除）
 ---@return boolean ok
 function M.rename(id, label)

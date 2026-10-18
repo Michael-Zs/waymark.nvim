@@ -235,6 +235,58 @@ test("每个 project 独立恢复分组，切换时清理旧 sign", function()
   store.ensure_loaded()
 end)
 
+test("manager C 跨文件清空当前分组并持久化，保留其他分组及其 sign", function()
+  wm.select_symbol("q")
+  local other = tmp .. "/clear.txt"
+  vim.fn.writefile({ "first", "second" }, other)
+  local source_buf = vim.api.nvim_get_current_buf()
+  local removed = store.list()
+  vim.cmd.edit(other)
+  removed[#removed + 1] = store.set_index(9, other, 2, 1, "clear me")
+  local other_buf = vim.api.nvim_get_current_buf()
+  local ns = vim.api.nvim_create_namespace("other-plugin")
+  local sign = vim.api.nvim_buf_set_extmark(other_buf, ns, 0, 0, { sign_text = "!" })
+  eq(gutter(2), "9")
+  local notify = vim.notify
+  local message
+  vim.notify = function(text)
+    message = text
+  end
+  local ok, err = pcall(function()
+    press(" zmC")
+  end)
+  vim.notify = notify
+  assert(ok, err)
+  eq(require("waymark.ui").is_open(), false)
+  eq(#store.list(), 0)
+  eq(wm.current_symbol(), "q")
+  assert(message:find("[waymark:q]", 1, true))
+  assert(message:find("删除 " .. #removed .. " 条", 1, true))
+  for _, loc in ipairs(removed) do
+    eq(loc.ext, nil)
+  end
+  for _, buf in ipairs({ source_buf, other_buf }) do
+    for _, ext in ipairs(vim.api.nvim_buf_get_extmarks(buf, store.ns(), 0, -1, { details = true })) do
+      eq(ext[4].sign_text, nil)
+    end
+  end
+  assert(#vim.api.nvim_buf_get_extmark_by_id(other_buf, ns, sign, {}) > 0)
+  local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
+  eq(#saved.symbols.q, 0)
+  eq(saved.symbols.w[1].label, "w renamed")
+  store.init()
+  eq(#store.list(), 0)
+  eq(store.clear(), 0)
+  wm.select_symbol("w")
+  eq(store.get_index(1).label, "w renamed")
+  vim.cmd.edit(file)
+  eq(gutter(5), "1")
+  wm.select_symbol("q")
+  store.add(file, 3, 1, "fresh")
+  eq(store.get_index(1).label, "fresh")
+end)
+
 test("旧 v2 数据归入 q，保留稀疏编号和标签", function()
   local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
   vim.fn.writefile({

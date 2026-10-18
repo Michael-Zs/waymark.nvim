@@ -26,7 +26,7 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `<leader>1..9` | Jump directly to mark 1-9 (jumps immediately on keypress) |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
-| `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
+| `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `C` clear current set · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
 | `<leader>zv` | Show only the current file's marks in one notification (number, line:column, label) |
 
 For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. You can then press `<leader>5` in Normal mode to jump back to it. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
@@ -34,6 +34,8 @@ For example, press `V` then `<leader>5` to set mark **5**, even when the list is
 Deleting a mark leaves its number free without renumbering the others. The manager and picker show the actual numbers, and previous/next navigation skips empty numbers. `J`/`K` in the manager reorder marks between occupied numbers.
 
 Press uppercase `U` in the manager to renumber all marks consecutively from 1 in their current order, e.g. **1, 3, 5 → 1, 2, 3**. The new numbers are saved immediately, and the cursor stays on the same entry.
+
+Press uppercase `C` in the manager to clear all marks in the current set across all files. The manager closes, gutter signs are removed, and the empty set is saved immediately. The notification includes the current symbol and the number of removed marks.
 
 ### Independent mark sets
 
@@ -91,7 +93,7 @@ require("waymark").update_index(n) -- create or update exactly number n with the
 require("waymark").select_symbol("w") -- select q / w / e / r; returns true on success
 require("waymark").current_symbol() -- selected symbol for the current project
 require("waymark").view() -- notify the current file's marks with their latest positions
-require("waymark.store"):list/get/get_index/set_index/add/update/remove/rename/move/compact/save
+require("waymark.store"):list/get/get_index/set_index/add/update/remove/clear/rename/move/compact/save
 ```
 
 `store.list()` returns a dense array of the selected set's existing marks sorted by `loc.index`; use `store.get_index(n)` to look up a specific number, which may be empty. Store mutations affect only the selected set; `store.save()` saves all sets. Switching sets emits the `User WaymarkSymbolChanged` autocmd with `ev.data.symbol`.
