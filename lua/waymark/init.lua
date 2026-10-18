@@ -11,7 +11,7 @@
 --   require("waymark").add()        添加当前位置
 --   .next() / .prev()               下一个 / 上一个（循环）
 --   .goto_index(n)                  直跳第 n 个（<leader>1..5 的底层）
---   .update_index(n)                用当前位置更新第 n 个
+--   .update_index(n)                用当前位置设置编号 n，不存在时按该编号创建
 --   require("waymark.picker").open()  搜索
 --   require("waymark.ui").open()      管理 popup
 --   require("waymark.store")          数据层（list/get/remove/rename/move/...）
@@ -115,23 +115,21 @@ function M.previous()
   navigation.previous()
 end
 
----直跳第 n 个 waymark（1-based，编号同 add 提示 / manager 左列）
+---直跳编号 n 的 waymark（1-based，编号同 add 提示 / manager 左列，可有空缺）
 function M.goto_index(n)
   return navigation.goto_index(n)
 end
 
----用当前文件和光标位置更新第 n 个 waymark，保留 id 和列表顺序
+---用当前文件和光标位置设置编号 n；已有条目保留 id，空槽位直接创建
 ---@param n integer
 ---@return boolean ok
 function M.update_index(n)
   n = math.floor(tonumber(n) or 0)
-  store.ensure_loaded()
-  local locs = store.list()
-  local loc = locs[n]
-  if not loc then
-    vim.notify(("[waymark] 没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
+  if n < 1 or n == math.huge or n ~= n then
+    vim.notify("[waymark] Waymark 编号必须大于 0", vim.log.levels.WARN)
     return false
   end
+  store.ensure_loaded()
   local file = store.buf_path(0)
   if not file then
     vim.notify("[waymark] 当前 buffer 没有关联文件", vim.log.levels.WARN)
@@ -139,8 +137,8 @@ function M.update_index(n)
   end
   local line, col0 = unpack(vim.api.nvim_win_get_cursor(0))
   local label = store.make_label(vim.api.nvim_get_current_line())
-  store.update(loc.id, file, line, col0 + 1, label)
-  vim.notify(("Waymark %d updated: %s:%d"):format(n, vim.fs.basename(file), line))
+  local _, created = store.set_index(n, file, line, col0 + 1, label)
+  vim.notify(("Waymark %d %s: %s:%d"):format(n, created and "added" or "updated", vim.fs.basename(file), line))
   return true
 end
 

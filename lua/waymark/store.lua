@@ -3,6 +3,7 @@
 -- 数据模型（每个 location）:
 --   {
 --     id    = "wm_...",          -- 稳定 id（与数组顺序无关，reorder 不变）
+--     index = 1-based number,    -- 数字槽位，可有空缺；list() 仍返回按编号排序的连续数组
 --     file  = "/abs/path",       -- 绝对路径，避免 cwd 变化失效
 --     line  = 1-based line
 --     col   = 1-based col        -- 内部统一 1-based，与 API 换算见 navigation
@@ -20,7 +21,7 @@ local ns = vim.api.nvim_create_namespace("waymark")
 
 local state = {
   root = nil, -- 当前 project root（绝对路径）
-  locations = {}, -- 有序 location 列表
+  locations = {}, -- 按 index 排序的连续 location 数组，不存放空槽位
 }
 
 --==========================================================================
@@ -57,6 +58,16 @@ local function new_id()
   return ("wm_%x"):format(vim.uv.hrtime())
 end
 
+local function valid_index(index)
+  return type(index) == "number" and index >= 1 and index < math.huge and index == math.floor(index)
+end
+
+local function sort_locations()
+  table.sort(state.locations, function(a, b)
+    return a.index < b.index
+  end)
+end
+
 ---取行文本的简短版本作为缺省 label
 function M.make_label(text, width)
   text = (text or ""):gsub("^%s+", "")
@@ -82,6 +93,7 @@ local function sanitize(loc)
   end
   return {
     id = (type(loc.id) == "string" and loc.id ~= "") and loc.id or new_id(),
+    index = valid_index(loc.index) and loc.index or nil,
     file = vim.fs.normalize(loc.file),
     line = math.floor(line),
     col = math.max(1, math.floor(col or 1)),
@@ -104,9 +116,16 @@ function M.load()
   if ok and content and content ~= "" then
     local decoded, data = pcall(vim.json.decode, content)
     if decoded and type(data) == "table" and type(data.locations) == "table" then
+      local used = {}
       for _, loc in ipairs(data.locations) do
         local s = sanitize(loc)
         if s then
+          -- 旧格式没有 index，沿用原列表编号；损坏的重复编号分配到空槽位。
+          s.index = s.index or (#locations + 1)
+          while used[s.index] do
+            s.index = s.index + 1
+          end
+          used[s.index] = true
           table.insert(locations, s)
         end
       end
@@ -115,19 +134,21 @@ function M.load()
     end
   end
   state.locations = locations
+  sort_locations()
 end
 
 ---把 extmark 最新位置回写 location，然后写盘
 function M.save()
   M.pull_extmarks()
   local payload = {
-    version = 1,
+    version = 2,
     root = state.root,
     locations = {},
   }
   for i, loc in ipairs(state.locations) do
     payload.locations[i] = {
       id = loc.id,
+      index = loc.index,
       file = loc.file,
       line = loc.line,
       col = loc.col,
@@ -253,12 +274,13 @@ end
 -- 增删改查 / 排序
 --==========================================================================
 
----返回当前列表（浅拷贝，避免外部误改内部状态；mutate 请走本模块 API）
+---返回按编号排序的连续数组，仅含实际条目；数字槽位使用 loc.index / get_index()。
+---浅拷贝，mutate 请走本模块 API。
 function M.list()
   return vim.list_extend({}, state.locations)
 end
 
-function M.index_of(id)
+local function position_of(id)
   for i, loc in ipairs(state.locations) do
     if loc.id == id then
       return i
@@ -268,11 +290,26 @@ function M.index_of(id)
 end
 
 function M.get(id)
-  local i = M.index_of(id)
+  local i = position_of(id)
   return i and state.locations[i] or nil
 end
 
+---返回条目的数字槽位，不是 list() 中的数组下标。
+function M.index_of(id)
+  local loc = M.get(id)
+  return loc and loc.index or nil
+end
+
+function M.get_index(index)
+  for _, loc in ipairs(state.locations) do
+    if loc.index == index then
+      return loc
+    end
+  end
+end
+
 ---添加 location。相同 file+line+col 已存在时返回 (existing, false)，不产生重复。
+---新条目使用最小空闲编号。
 ---@return table location
 ---@return boolean created
 function M.add(file, line, col, label)
@@ -282,18 +319,14 @@ function M.add(file, line, col, label)
       return loc, false
     end
   end
-  local loc = {
-    id = new_id(),
-    file = file,
-    line = line,
-    col = col,
-    label = label,
-    ext = nil,
-  }
-  table.insert(state.locations, loc)
-  M.attach_extmark(loc, vim.api.nvim_get_current_buf())
-  M.save()
-  return loc, true
+  local index = 1
+  for _, loc in ipairs(state.locations) do
+    if loc.index ~= index then
+      break
+    end
+    index = index + 1
+  end
+  return M.set_index(index, file, line, col, label)
 end
 
 ---更新 location 的位置和 label，保留稳定 id / 列表顺序，并把 extmark 移到当前 buffer。
@@ -309,9 +342,29 @@ function M.update(id, file, line, col, label)
   return true
 end
 
+---设置指定数字槽位，不存在时直接创建；允许不同槽位指向相同位置。
+---@return table|nil location
+---@return boolean created
+function M.set_index(index, file, line, col, label)
+  if not valid_index(index) then
+    return nil, false
+  end
+  local loc = M.get_index(index)
+  if loc then
+    M.update(loc.id, file, line, col, label)
+    return loc, false
+  end
+  loc = { id = new_id(), index = index, file = file, line = line, col = col, label = label }
+  table.insert(state.locations, loc)
+  sort_locations()
+  M.attach_extmark(loc, vim.api.nvim_get_current_buf())
+  M.save()
+  return loc, true
+end
+
 ---@return boolean removed
 function M.remove(id)
-  local i = M.index_of(id)
+  local i = position_of(id)
   if not i then
     return false
   end
@@ -333,19 +386,33 @@ function M.rename(id, label)
   return true
 end
 
----把 id 移到新 index（用于排序）
+---把 id 移到新编号；目标已占用时在现有编号间重排，空缺编号保持不变。
 ---@return boolean ok
 function M.move(id, new_index)
-  local i = M.index_of(id)
-  if not i or #state.locations < 2 then
+  local i = position_of(id)
+  if not i or not valid_index(new_index) then
     return false
   end
-  new_index = math.max(1, math.min(#state.locations, math.floor(new_index)))
-  if new_index == i then
+  local loc = state.locations[i]
+  if new_index == loc.index then
     return false
   end
-  local loc = table.remove(state.locations, i)
-  table.insert(state.locations, new_index, loc)
+  local target = M.get_index(new_index)
+  if target then
+    local target_pos = position_of(target.id)
+    local indices = {}
+    for j, entry in ipairs(state.locations) do
+      indices[j] = entry.index
+    end
+    table.remove(state.locations, i)
+    table.insert(state.locations, target_pos, loc)
+    for j, entry in ipairs(state.locations) do
+      entry.index = indices[j]
+    end
+  else
+    loc.index = new_index
+    sort_locations()
+  end
   M.save()
   return true
 end

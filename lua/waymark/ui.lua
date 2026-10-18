@@ -36,21 +36,17 @@ local function render()
       where = "[missing] " .. where
     end
     local label = loc.label or ""
-    cells[i] = { where = where, label = label, missing = missing }
+    cells[i] = { index = loc.index, where = where, label = label, missing = missing }
     w_where = math.max(w_where, vim.fn.strdisplaywidth(where))
     w_label = math.max(w_label, vim.fn.strdisplaywidth(label))
   end
 
-  local w_idx = math.max(#tostring(#cells), 2)
+  local w_idx = math.max(#tostring(locs[#locs] and locs[#locs].index or 0), 2)
   local lines = {}
   vim.api.nvim_buf_clear_namespace(buf, hl_ns, 0, -1)
 
   for i, cell in ipairs(cells) do
-    lines[i] = (" %-" .. w_idx .. "d  %-" .. w_where .. "s  %s"):format(
-      i,
-      cell.where,
-      cell.label
-    )
+    lines[i] = (" %-" .. w_idx .. "d  %-" .. w_where .. "s  %s"):format(cell.index, cell.where, cell.label)
     if cell.missing then
       vim.api.nvim_buf_set_extmark(buf, hl_ns, i - 1, 0, {
         line_hl_group = "WaymarkMissing",
@@ -171,16 +167,14 @@ local function move_current(delta)
   end
   local locs = store.list()
   local loc = locs[idx]
-  if not loc then
+  local target = locs[idx + delta]
+  if not loc or not target then
     return
   end
-  store.move(loc.id, idx + delta)
+  store.move(loc.id, target.index)
   refresh()
   -- 光标跟随移动的条目
-  local new_idx = store.index_of(loc.id)
-  if new_idx then
-    vim.api.nvim_win_set_cursor(win, { new_idx, 0 })
-  end
+  vim.api.nvim_win_set_cursor(win, { idx + delta, 0 })
 end
 
 local function jump_current()
@@ -239,10 +233,7 @@ function M.open()
   vim.wo[win].foldcolumn = "0"
   vim.api.nvim_win_set_cursor(win, { 1, 0 })
   -- 按内容宽度自适应
-  vim.api.nvim_win_set_config(win, { width = math.min(
-    content_width() + 2,
-    math.floor(vim.o.columns * 0.8)
-  ) })
+  vim.api.nvim_win_set_config(win, { width = math.min(content_width() + 2, math.floor(vim.o.columns * 0.8)) })
 
   local function map(key, fn, desc)
     vim.keymap.set("n", key, fn, { buffer = buf, desc = "Waymark: " .. desc, nowait = true })

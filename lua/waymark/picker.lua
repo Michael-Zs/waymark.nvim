@@ -6,11 +6,11 @@ local navigation = require("waymark.navigation")
 
 local M = {}
 
-local function entry(i, loc)
+local function entry(loc)
   local missing = not store.file_exists(loc.file)
   local where = vim.fs.basename(loc.file) .. ":" .. loc.line
   return {
-    text = ("%d. %s%s  %s"):format(i, missing and "[missing] " or "", where, loc.label or ""),
+    text = ("%d. %s%s  %s"):format(loc.index, missing and "[missing] " or "", where, loc.label or ""),
     -- snacks.picker 标准字段：preview / resolve 需要
     -- 注意：不能把 waymark location 放进 `loc` 字段（snacks 保留给 LSP location）
     file = loc.file,
@@ -66,7 +66,7 @@ function M.open()
 
   local items = {}
   for i, loc in ipairs(locs) do
-    items[i] = entry(i, loc)
+    items[i] = entry(loc)
   end
 
   return Snacks.picker({

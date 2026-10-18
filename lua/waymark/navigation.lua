@@ -115,19 +115,24 @@ function M.previous()
   M.step(-1)
 end
 
----跳转到列表中第 n 个 location（1-based，即 add 时提示的编号 / manager 左列数字）
+---跳转到编号 n（1-based，即 add 时提示的编号 / manager 左列数字，可有空缺）
 ---@param n integer
 ---@return boolean ok
 function M.goto_index(n)
   n = math.floor(tonumber(n) or 0)
   store.ensure_loaded()
   local locs = store.list()
-  local loc = locs[n]
+  local loc = store.get_index(n)
   if not loc then
     vim.notify(("[waymark] 没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
     return false
   end
-  last_index = n -- 后续 next/prev 从这里继续
+  for i, entry in ipairs(locs) do
+    if entry.id == loc.id then
+      last_index = i -- step 遍历实际条目，跳过空槽位
+      break
+    end
+  end
   return M.jump(loc)
 end
 

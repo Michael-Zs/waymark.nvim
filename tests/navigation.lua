@@ -223,6 +223,21 @@ test("真实 UI 中从输入模式按 Enter 可精确跳转", function()
   assert(ok, err)
 end)
 
+test("稀疏编号在真实 Picker 中显示并可确认跳转", function()
+  local loc = store.list()[1]
+  assert(store.move(loc.id, 5))
+  vim.cmd.edit(file)
+  picker = require("waymark.picker").open()
+  flush()
+  eq(#picker.opts.items, 1)
+  eq(picker.opts.items[1].text:match("^(%d+)%."), "5")
+  eq(picker.opts.items[1].waymark.id, loc.id)
+  picker.opts.confirm(picker, picker.opts.items[1])
+  flush()
+  eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
+  assert(store.move(loc.id, 1))
+end)
+
 vim.cmd.edit(file)
 store.add(file, 30, 4)
 
