@@ -57,6 +57,12 @@
 
 改完重启或 `:Lazy reload waymark.nvim` 生效。
 
+## Gutter 编号
+
+已标记行会在 Neovim 左侧的 sign column 显示 Waymark 编号。编号随代码编辑移动，并在位置更新、删除、排序（`J`/`K`）或连续编号（`U`）后同步刷新。重新打开文件时会恢复已保存的标记。
+
+高亮组 `WaymarkSign` 默认链接到 `Special`，sign 优先级为 20，显示遵循你的 `signcolumn` 设置。同一行有多个标记或其他 sign 时，可用 `vim.opt.signcolumn = "auto:3"` 显示多个。原生 sign 最多占两列，因此大于 99 的编号显示为 `++`；manager 和 picker 仍显示完整编号。
+
 ## 设计
 
 - **project-local**：`vim.fs.root(0, {".git"})`，fallback `cwd`；每个 project 一个 JSON 文件

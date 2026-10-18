@@ -57,6 +57,12 @@ All keymaps live in the plugin's `setup()` and are overridden via the `keys` tab
 
 Restart Neovim or run `:Lazy reload waymark.nvim` for changes to take effect.
 
+## Gutter numbers
+
+Marked lines show their Waymark number in Neovim's sign column. The numbers follow edits and update when marks are moved, deleted, reordered (`J`/`K`), or renumbered (`U`). Saved marks reappear when their files are opened.
+
+The `WaymarkSign` highlight group defaults to `Special`. Signs use priority 20 and respect your `signcolumn` setting. To show multiple marks or other signs on the same line, use `vim.opt.signcolumn = "auto:3"`. Native signs are limited to two columns, so numbers above 99 display as `++`; the manager and picker show the full number.
+
 ## Design
 
 - **Project-local**: root is `vim.fs.root(0, {".git"})` with `cwd` fallback; one JSON file per project

@@ -69,6 +69,7 @@ function M.setup(opts)
   end
 
   vim.api.nvim_set_hl(0, "WaymarkMissing", { default = true, link = "DiagnosticError" })
+  vim.api.nvim_set_hl(0, "WaymarkSign", { default = true, link = "Special" })
 
   local group = vim.api.nvim_create_augroup("waymark", { clear = true })
   vim.api.nvim_create_autocmd("BufReadPost", {

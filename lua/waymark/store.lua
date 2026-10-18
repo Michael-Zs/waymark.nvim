@@ -133,6 +133,12 @@ function M.load()
       vim.notify("[waymark] 数据文件损坏，已忽略: " .. path, vim.log.levels.WARN)
     end
   end
+  -- 重载或切换 project 时清理旧标记，避免遗留 gutter 编号。
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) then
+      vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+    end
+  end
   state.locations = locations
   sort_locations()
 end
@@ -196,14 +202,38 @@ local function detach_extmark(loc)
   loc.ext = nil
 end
 
----为单个 location 挂 extmark（buffer 内代码插入/删除时位置自动跟随）
+local function sign_options(loc)
+  return {
+    -- 原生 sign 最多占两列；大编号仍保留完整位置跟踪。
+    sign_text = loc.index <= 99 and tostring(loc.index) or "++",
+    sign_hl_group = "WaymarkSign",
+    priority = 20,
+  }
+end
+
+---编号变化时原地更新 sign，使用 extmark 的最新位置，避免回退代码编辑后的位移。
+local function refresh_signs()
+  for _, loc in ipairs(state.locations) do
+    if loc.ext and vim.api.nvim_buf_is_loaded(loc.ext.buf) then
+      local pos = vim.api.nvim_buf_get_extmark_by_id(loc.ext.buf, ns, loc.ext.id, {})
+      if pos[1] and pos[1] >= 0 then
+        local opts = sign_options(loc)
+        opts.id = loc.ext.id
+        opts.strict = false
+        vim.api.nvim_buf_set_extmark(loc.ext.buf, ns, pos[1], pos[2], opts)
+      end
+    end
+  end
+end
+
+---为单个 location 挂带编号 sign 的 extmark（buffer 内代码插入/删除时位置自动跟随）
 function M.attach_extmark(loc, bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
   end
   detach_extmark(loc)
   local line = math.min(loc.line, math.max(vim.api.nvim_buf_line_count(bufnr), 1)) - 1
-  local ok, id = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, math.max(0, loc.col - 1), {})
+  local ok, id = pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, line, math.max(0, loc.col - 1), sign_options(loc))
   if ok then
     loc.ext = { buf = bufnr, id = id }
   end
@@ -413,6 +443,7 @@ function M.move(id, new_index)
     loc.index = new_index
     sort_locations()
   end
+  refresh_signs()
   M.save()
   return true
 end
@@ -428,6 +459,7 @@ function M.compact()
     end
   end
   if changed then
+    refresh_signs()
     M.save()
   end
   return changed
