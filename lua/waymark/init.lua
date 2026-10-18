@@ -2,8 +2,8 @@
 --
 -- 所有 keymap 集中在 setup() 中配置，如需调整传入:
 --   require("waymark").setup({
---     keys = { add = "<leader>z", prev = "[z", next = "]z",
---              picker = "<leader>sn", manager = "<leader>bm",
+--     keys = { add = "<leader>zz", prev = "[z", next = "]z",
+--              picker = "<leader>zp", manager = "<leader>zm",
 --              jump_prefix = "<leader>" },
 --   })
 --
@@ -29,11 +29,11 @@ M.navigation = navigation
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
-    add = "<leader>z",
+    add = "<leader>zz",
     prev = "[z",
     next = "]z",
-    picker = "<leader>sn",
-    manager = "<leader>bm",
+    picker = "<leader>zp",
+    manager = "<leader>zm",
     jump_prefix = "<leader>",
   }, opts.keys or {})
 
@@ -85,7 +85,7 @@ function M.setup(opts)
   })
 end
 
----添加当前位置（<leader>z）
+---添加当前位置（<leader>zz）
 function M.add()
   store.ensure_loaded()
   local file = store.buf_path(0)

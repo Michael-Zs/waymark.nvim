@@ -305,7 +305,7 @@ test("manager U 填补编号空缺，保留条目和光标并立即持久化", f
   end
   local before = vim.deepcopy(store.list())
   local ui = require("waymark.ui")
-  press(" bm")
+  press(" zm")
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_cursor(win, { 2, 0 })
   press("U")

@@ -98,7 +98,7 @@ function M.step(delta)
   local locs = store.list()
   local n = #locs
   if n == 0 then
-    vim.notify("[waymark] 列表为空，先用 <leader>z 添加位置", vim.log.levels.INFO)
+    vim.notify("[waymark] 列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
     return
   end
   local cur = current_index() or last_index

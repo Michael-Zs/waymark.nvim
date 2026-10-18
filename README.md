@@ -20,12 +20,12 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 
 | Key | Action |
 |---|---|
-| `<leader>z` | Add current position using the lowest free number (duplicate positions are skipped) |
+| `<leader>zz` | Add current position using the lowest free number (duplicate positions are skipped) |
 | `[z` / `]z` | Previous / next mark (across files, wraps around) |
 | `<leader>1..9` | Jump directly to mark 1-9 (jumps immediately on keypress) |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
-| `<leader>sn` | Search marks with Snacks picker (`<C-d>` to delete) |
-| `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
+| `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
+| `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
 
 For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. You can then press `<leader>5` in Normal mode to jump back to it. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
 
