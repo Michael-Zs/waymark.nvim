@@ -72,8 +72,8 @@ local function win_config(n_items, text_width)
     title_pos = "center",
     width = width,
     height = height,
-    row = math.floor((screen_lines - height) / 2),
-    col = math.floor((columns - width) / 2),
+    row = math.floor((screen_lines - height - 2) / 2),
+    col = math.floor((columns - width - 2) / 2),
     style = "minimal",
     zindex = 50,
   }
@@ -117,7 +117,7 @@ local function refresh()
   end
   clamp_cursor()
   local cfg = win_config(n, content_width())
-  vim.api.nvim_win_set_config(win, { width = cfg.width, height = cfg.height })
+  vim.api.nvim_win_set_config(win, cfg)
 end
 
 local function delete_current()
@@ -223,7 +223,7 @@ function M.open()
   vim.bo[buf].filetype = "waymark"
 
   local n = render()
-  local cfg = win_config(n, 0)
+  local cfg = win_config(n, content_width())
   win = vim.api.nvim_open_win(buf, true, cfg)
   vim.wo[win].cursorline = true
   vim.wo[win].wrap = false
@@ -232,8 +232,6 @@ function M.open()
   vim.wo[win].signcolumn = "no"
   vim.wo[win].foldcolumn = "0"
   vim.api.nvim_win_set_cursor(win, { 1, 0 })
-  -- 按内容宽度自适应
-  vim.api.nvim_win_set_config(win, { width = math.min(content_width() + 2, math.floor(vim.o.columns * 0.8)) })
 
   local function map(key, fn, desc)
     vim.keymap.set("n", key, fn, { buffer = buf, desc = "Waymark: " .. desc, nowait = true })
