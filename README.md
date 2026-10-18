@@ -22,8 +22,8 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 |---|---|
 | `<leader>z` | Add current position using the lowest free number (duplicate positions are skipped) |
 | `[z` / `]z` | Previous / next mark (across files, wraps around) |
-| `<leader>1..5` | Jump directly to mark 1-5 (jumps immediately on keypress). Only claims 1..5; `6..9` are left free (reserved for LazyVim buffer keys) |
-| `V` then `<leader>1..5` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
+| `<leader>1..9` | Jump directly to mark 1-9 (jumps immediately on keypress) |
+| `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>sn` | Search marks with Snacks picker (`<C-d>` to delete) |
 | `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `q` close |
 

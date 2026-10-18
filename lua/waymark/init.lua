@@ -10,7 +10,7 @@
 -- 公共 API:
 --   require("waymark").add()        添加当前位置
 --   .next() / .prev()               下一个 / 上一个（循环）
---   .goto_index(n)                  直跳第 n 个（<leader>1..5 的底层）
+--   .goto_index(n)                  直跳第 n 个（<leader>1..9 的底层）
 --   .update_index(n)                用当前位置设置编号 n，不存在时按该编号创建
 --   require("waymark.picker").open()  搜索
 --   require("waymark.ui").open()      管理 popup
@@ -25,8 +25,7 @@ M.store = store
 M.navigation = navigation
 
 ---@param opts table|nil { keys = {add,prev,next,picker,manager,jump_prefix} }，
----单项设 false 可禁用该键；jump_prefix 生成 <prefix>1..5 的普通模式跳转 / 可视模式更新键（固定 1..5，
----6..9 不占用，留给 LazyVim 等其他插件的 buffer 键）
+---单项设 false 可禁用该键；jump_prefix 生成 <prefix>1..9 的普通模式跳转 / 可视模式更新键
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
@@ -57,8 +56,8 @@ function M.setup(opts)
     require("waymark.ui").open()
   end, "Waymark manager")
 
-  if keys.jump_prefix then -- <prefix>1..5 → 普通模式跳转，可视模式更新第 N 个
-    for d = 1, 5 do
+  if keys.jump_prefix then -- <prefix>1..9 → 普通模式跳转，可视模式更新第 N 个
+    for d = 1, 9 do
       map(keys.jump_prefix .. d, function()
         navigation.goto_index(d)
       end, "Waymark jump #" .. d)

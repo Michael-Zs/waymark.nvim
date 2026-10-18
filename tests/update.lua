@@ -32,7 +32,7 @@ end
 local function clear_number_maps()
   for _, mode in ipairs({ "n", "x" }) do
     for _, prefix in ipairs({ " ", "g" }) do
-      for n = 1, 5 do
+      for n = 1, 9 do
         pcall(vim.keymap.del, mode, prefix .. n)
       end
     end
@@ -44,15 +44,18 @@ local function test(name, fn)
   tests[#tests + 1] = { name, fn }
 end
 
-test("V + 数字键更新全部 1-5 项，保留编号并刷新标签", function()
+test("V + 数字键更新全部 1-9 项，保留编号并刷新标签", function()
+  for n = 6, 9 do
+    store.add(source, n, 1, "original " .. n)
+  end
   local before = vim.deepcopy(store.list())
-  for n = 1, 5 do
+  for n = 1, 9 do
     vim.api.nvim_win_set_cursor(0, { n + 10, 4 })
     press("V " .. n)
     eq(vim.api.nvim_get_mode().mode, "n")
     eq(vim.api.nvim_win_get_cursor(0), { n + 10, 4 })
     local locs = store.list()
-    eq(#locs, 5)
+    eq(#locs, 9)
     for i, loc in ipairs(locs) do
       eq(loc.id, before[i].id)
     end
@@ -113,11 +116,11 @@ test("编号不存在时直接创建，保留已有条目并可跳转", function
   eq(vim.api.nvim_win_get_cursor(0), { 12, 4 })
 end)
 
-test("空列表可直接用数字键依次创建 1-5 项并持久化", function()
+test("空列表可直接用数字键依次创建 1-9 项并持久化", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
-  for n = 1, 5 do
+  for n = 1, 9 do
     vim.api.nvim_win_set_cursor(0, { n + 10, 4 })
     press("V " .. n)
     eq(vim.api.nvim_get_mode().mode, "n")
@@ -130,7 +133,7 @@ test("空列表可直接用数字键依次创建 1-5 项并持久化", function(
   end
   local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
   local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).locations
-  eq(#saved, 5)
+  eq(#saved, 9)
   for n, loc in ipairs(saved) do
     eq({ loc.id, loc.file, loc.line, loc.col }, { store.list()[n].id, source, n + 10, 5 })
   end
@@ -355,10 +358,10 @@ test("自定义前缀同时支持跳转和可视更新", function()
   clear_number_maps()
   wm.setup({ keys = { jump_prefix = "g" } })
   vim.api.nvim_win_set_cursor(0, { 12, 4 })
-  press("Vg3")
-  eq({ store.list()[3].line, store.list()[3].col }, { 12, 5 })
+  press("Vg9")
+  eq({ store.get_index(9).line, store.get_index(9).col }, { 12, 5 })
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
-  press("g3")
+  press("g9")
   eq(vim.api.nvim_win_get_cursor(0), { 12, 4 })
 end)
 
@@ -388,11 +391,6 @@ for _, case in ipairs(tests) do
     wm.setup()
     for n = 1, 5 do
       store.add(source, n, 1, "original " .. n)
-    end
-    for _, mode in ipairs({ "n", "x" }) do
-      for n = 6, 9 do
-        eq(vim.fn.maparg(" " .. n, mode), "")
-      end
     end
     case[2]()
   end, debug.traceback)

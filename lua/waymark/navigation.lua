@@ -1,4 +1,4 @@
--- 跳转：jump / next / previous / goto_index（<leader>1..5 数字直跳），循环遍历 + cursor 恢复。
+-- 跳转：jump / next / previous / goto_index（<leader>1..9 数字直跳），循环遍历 + cursor 恢复。
 
 local store = require("waymark.store")
 
