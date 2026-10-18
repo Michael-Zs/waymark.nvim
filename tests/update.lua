@@ -1,4 +1,4 @@
--- 运行：nvim --headless -u NONE -i NONE -n -l tests/update.lua
+-- Run: nvim --headless -u NONE -i NONE -n -l tests/update.lua
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local tmp = vim.fn.tempname()
 vim.opt.rtp:prepend(root)
@@ -44,7 +44,7 @@ local function test(name, fn)
   tests[#tests + 1] = { name, fn }
 end
 
-test("V + 数字键更新全部 1-9 项，保留编号并刷新标签", function()
+test("V + number updates all slots 1-9, preserving numbers and refreshing labels", function()
   for n = 6, 9 do
     store.add(source, n, 1, "original " .. n)
   end
@@ -67,7 +67,7 @@ test("V + 数字键更新全部 1-9 项，保留编号并刷新标签", function
   end
 end)
 
-test("跨文件替换移除旧 extmark，跟随新文件编辑并立即持久化", function()
+test("cross-file replacement removes old extmarks, tracks new edits, and persists immediately", function()
   local loc = store.list()[1]
   local old_ext = vim.deepcopy(loc.ext)
   local id = loc.id
@@ -91,14 +91,14 @@ test("跨文件替换移除旧 extmark，跟随新文件编辑并立即持久化
   eq(vim.api.nvim_win_get_cursor(0), { 13, 6 })
 end)
 
-test("多行可视选择使用当前光标端点", function()
+test("multi-line Visual selections use the current cursor endpoint", function()
   vim.api.nvim_win_set_cursor(0, { 12, 4 })
   press("Vkk 2")
   eq({ store.list()[2].line, store.list()[2].col }, { 10, 5 })
   eq(vim.api.nvim_get_mode().mode, "n")
 end)
 
-test("编号不存在时直接创建，保留已有条目并可跳转", function()
+test("empty numbered slots are created without changing existing entries and can be jumped to", function()
   store.remove(store.list()[5].id)
   local before = vim.deepcopy(store.list())
   vim.api.nvim_win_set_cursor(0, { 12, 4 })
@@ -116,7 +116,7 @@ test("编号不存在时直接创建，保留已有条目并可跳转", function
   eq(vim.api.nvim_win_get_cursor(0), { 12, 4 })
 end)
 
-test("空列表可直接用数字键依次创建 1-9 项并持久化", function()
+test("number keys create and persist slots 1-9 from an empty list", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -139,7 +139,7 @@ test("空列表可直接用数字键依次创建 1-9 项并持久化", function(
   end
 end)
 
-test("空列表直接设置 5，普通模式按 5 可跳转，重复设置只更新", function()
+test("slot 5 can be created in an empty list, jumped to, and updated without duplication", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -173,7 +173,7 @@ test("空列表直接设置 5，普通模式按 5 可跳转，重复设置只更
   eq(vim.api.nvim_win_get_cursor(0), { 16, 2 })
 end)
 
-test("跨进程加载保留空槽位，仍可按 5 跳转", function()
+test("loading across processes preserves gaps and number 5 still jumps correctly", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -209,7 +209,7 @@ test("跨进程加载保留空槽位，仍可按 5 跳转", function()
   assert(ok, err)
 end)
 
-test("乱序设置和删除保留编号，普通添加填充最小空槽位", function()
+test("out-of-order updates and deletions preserve numbers while add fills the lowest free slot", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -238,7 +238,7 @@ test("乱序设置和删除保留编号，普通添加填充最小空槽位", fu
   eq(vim.api.nvim_win_get_cursor(0), { 15, 4 })
 end)
 
-test("指定编号可以指向已有位置而不覆盖其他编号", function()
+test("a numbered slot may share a position without overwriting other slots", function()
   store.remove(store.get_index(5).id)
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   local first = vim.deepcopy(store.get_index(1))
@@ -251,7 +251,7 @@ test("指定编号可以指向已有位置而不覆盖其他编号", function()
   eq(vim.api.nvim_win_get_cursor(0), { 1, 0 })
 end)
 
-test("next/prev 按编号循环并跳过空槽位", function()
+test("next/prev wrap by number and skip empty slots", function()
   for _, n in ipairs({ 1, 3, 4 }) do
     store.remove(store.get_index(n).id)
   end
@@ -271,7 +271,7 @@ test("next/prev 按编号循环并跳过空槽位", function()
   eq(vim.api.nvim_win_get_cursor(0), { 5, 0 })
 end)
 
-test("manager 显示实际编号，重排/删除/跳转使用正确条目", function()
+test("the manager displays actual numbers and reorders, deletes, and jumps to the correct entries", function()
   for _, n in ipairs({ 1, 3, 4 }) do
     store.remove(store.get_index(n).id)
   end
@@ -299,7 +299,7 @@ test("manager 显示实际编号，重排/删除/跳转使用正确条目", func
   eq(vim.api.nvim_win_get_cursor(0), { 5, 0 })
 end)
 
-test("manager U 填补编号空缺，保留条目和光标并立即持久化", function()
+test("manager U fills numbering gaps, preserves entries and cursor, and persists immediately", function()
   for _, n in ipairs({ 2, 4 }) do
     store.remove(store.get_index(n).id)
   end
@@ -340,7 +340,7 @@ test("manager U 填补编号空缺，保留条目和光标并立即持久化", f
   eq(vim.api.nvim_win_get_cursor(0), { 3, 0 })
 end)
 
-test("manager U 从 1 开始编号并保留 J/K 调整后的顺序", function()
+test("manager U numbers from 1 and preserves the order established by J/K", function()
   for _, n in ipairs({ 1, 3, 4 }) do
     store.remove(store.get_index(n).id)
   end
@@ -357,7 +357,7 @@ test("manager U 从 1 开始编号并保留 J/K 调整后的顺序", function()
   eq(vim.api.nvim_win_get_cursor(0), { 2, 0 })
 end)
 
-test("单条稀疏编号可整理为空缺消除后的 1，空列表可安全整理", function()
+test("a single sparse entry compacts to 1 and an empty list can be compacted safely", function()
   for _, n in ipairs({ 1, 2, 3, 4 }) do
     store.remove(store.get_index(n).id)
   end
@@ -372,7 +372,7 @@ test("单条稀疏编号可整理为空缺消除后的 1，空列表可安全整
   eq(store.list(), {})
 end)
 
-test("旧版持久化数据按原顺序迁移编号并保留 id/标签", function()
+test("legacy saved data migrates numbers in the original order and preserves IDs / labels", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -403,7 +403,7 @@ test("旧版持久化数据按原顺序迁移编号并保留 id/标签", functio
   eq(saved.symbols.q[1].id, "legacy_first")
 end)
 
-test("无效编号不会创建条目", function()
+test("invalid numbers do not create entries", function()
   local before = vim.deepcopy(store.list())
   for _, n in ipairs({ 0, -1, "invalid" }) do
     eq(wm.update_index(n), false)
@@ -411,14 +411,14 @@ test("无效编号不会创建条目", function()
   eq(store.list(), before)
 end)
 
-test("无名 buffer 不覆盖已有位置", function()
+test("unnamed buffers do not overwrite existing positions", function()
   local before = vim.deepcopy(store.list())
   vim.cmd.enew()
   press("V 1")
   eq(store.list(), before)
 end)
 
-test("无名 buffer 不创建新位置", function()
+test("unnamed buffers do not create positions", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)
   end
@@ -428,7 +428,7 @@ test("无名 buffer 不创建新位置", function()
   eq(vim.api.nvim_get_mode().mode, "n")
 end)
 
-test("自定义前缀同时支持跳转和可视更新", function()
+test("custom prefixes support both jumps and Visual updates", function()
   clear_number_maps()
   wm.setup({ keys = { jump_prefix = "g" } })
   vim.api.nvim_win_set_cursor(0, { 12, 4 })
@@ -439,7 +439,7 @@ test("自定义前缀同时支持跳转和可视更新", function()
   eq(vim.api.nvim_win_get_cursor(0), { 12, 4 })
 end)
 
-test("禁用数字前缀时不注册跳转或可视更新键", function()
+test("disabling the numeric prefix registers no jump or Visual update keymaps", function()
   clear_number_maps()
   wm.setup({ keys = { jump_prefix = false } })
   for _, mode in ipairs({ "n", "x" }) do

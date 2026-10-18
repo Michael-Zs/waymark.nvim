@@ -1,16 +1,16 @@
--- 跳转：jump / next / previous / goto_index（<leader>1..9 数字直跳），循环遍历 + cursor 恢复。
+-- Navigation: jump / next / previous / goto_index (<leader>1..9), with wraparound and cursor positioning.
 
 local store = require("waymark.store")
 
 local M = {}
 
-local last_indices = {} -- 每个 project / 分组独立记录上一次 step 位置
+local last_indices = {} -- Track the previous step independently for each project / set.
 
 local function context()
   return store.project_root() .. ":" .. store.current_symbol()
 end
 
----跳转到 location。文件不存在时 notify 并安全返回 false。
+---Jump to a location. Notify and return false if its file is missing.
 ---@param loc table
 ---@return boolean ok
 function M.jump(loc)
@@ -19,7 +19,7 @@ function M.jump(loc)
     return false
   end
 
-  -- 找已加载 buffer，否则打开文件（复用当前窗口）
+  -- Reuse a loaded buffer, or open the file in the current window.
   local buf
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_get_name(b) == loc.file then
@@ -34,9 +34,9 @@ function M.jump(loc)
     vim.api.nvim_win_set_buf(0, buf)
   end
 
-  store.sync_buffer(buf) -- 确保 extmark 挂上（重开文件的情况）
+  store.sync_buffer(buf) -- Attach extmarks when reopening a file.
 
-  -- 位置优先取 extmark（代码移动后的最新位置），fallback 持久化值
+  -- Prefer the latest extmark position after edits; fall back to the saved position.
   local line, col = loc.line, loc.col
   if loc.ext and loc.ext.buf == buf then
     local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, buf, store.ns(), loc.ext.id, {})
@@ -45,7 +45,7 @@ function M.jump(loc)
     end
   end
 
-  -- clamp 到 buffer 范围内
+  -- Clamp to the buffer's line range.
   local count = math.max(vim.api.nvim_buf_line_count(buf), 1)
   if line > count then
     line = count
@@ -53,10 +53,10 @@ function M.jump(loc)
 
   local win = vim.api.nvim_get_current_win()
   pcall(vim.api.nvim_win_set_cursor, win, { line, math.max(0, col - 1) })
-  vim.cmd("normal! zv") -- 展开光标处 fold
+  vim.cmd("normal! zv") -- Open folds at the cursor.
 
-  -- view 恢复可能重新关闭目标折叠；仅在仍停留于本次跳转时补一次展开。
-  -- 保存实际光标（列号可能被截到行尾），延迟回调不再重新定位。
+  -- View restoration may close the target fold again; reopen it only if this jump is still current.
+  -- Capture the actual cursor (columns may be clamped at EOL); the deferred callback never repositions it.
   local cursor = vim.api.nvim_win_get_cursor(win)
   vim.schedule(function()
     if
@@ -71,8 +71,8 @@ function M.jump(loc)
   return true
 end
 
----判断当前光标在列表中的 index：
----1) 同文件且完全相同的 line/col；2) 同文件距离最近的行；3) 上一次 step 的 index
+---Find the cursor's list index: exact file/line/column match, then nearest line in the same file.
+---The caller falls back to the previous step's index if no match is found.
 local function current_index()
   local locs = store.list()
   local file = store.buf_path(0)
@@ -96,18 +96,18 @@ local function current_index()
   return best
 end
 
----按列表顺序遍历，首尾循环。delta = 1 (next) / -1 (previous)
+---Step through the list with wraparound. delta = 1 (next) / -1 (previous).
 function M.step(delta)
   store.ensure_loaded()
   local locs = store.list()
   local n = #locs
   if n == 0 then
-    store.notify("列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
+    store.notify("No marks in this set; use <leader>zz to add a position", vim.log.levels.INFO)
     return
   end
   store.pull_extmarks()
   local cur = current_index() or last_indices[context()] or 0
-  local idx = math.floor((cur - 1 + delta) % n) + 1 -- lua % 保证循环
+  local idx = math.floor((cur - 1 + delta) % n) + 1 -- Lua's modulo provides wraparound.
   last_indices[context()] = idx
   M.jump(locs[idx])
 end
@@ -120,7 +120,7 @@ function M.previous()
   M.step(-1)
 end
 
----跳转到编号 n（1-based，即 add 时提示的编号 / manager 左列数字，可有空缺）
+---Jump to number n (1-based, as shown in notifications / manager; gaps are allowed).
 ---@param n integer
 ---@return boolean ok
 function M.goto_index(n)
@@ -129,12 +129,12 @@ function M.goto_index(n)
   local locs = store.list()
   local loc = store.get_index(n)
   if not loc then
-    store.notify(("没有 Waymark %d（共 %d 条）"):format(n, #locs), vim.log.levels.WARN)
+    store.notify(("No Waymark %d (%d marks in this set)"):format(n, #locs), vim.log.levels.WARN)
     return false
   end
   for i, entry in ipairs(locs) do
     if entry.id == loc.id then
-      last_indices[context()] = i -- step 遍历实际条目，跳过空槽位
+      last_indices[context()] = i -- Step through existing entries, skipping empty slots.
       break
     end
   end

@@ -1,5 +1,5 @@
--- 运行：nvim --headless -u NONE -i NONE -n -l tests/navigation.lua
--- Picker 用例使用真实 Snacks；可用 SNACKS_PLUGIN 指定其路径。
+-- Run: nvim --headless -u NONE -i NONE -n -l tests/navigation.lua
+-- Picker tests use real Snacks; set SNACKS_PLUGIN to override its path.
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local snacks = vim.env.SNACKS_PLUGIN or (vim.fn.stdpath("data") .. "/lazy/snacks.nvim")
 local tmp = vim.fn.tempname()
@@ -58,28 +58,28 @@ local function confirm()
   return source
 end
 
-test("主动跳转立即定位，延迟后位置不变", function()
+test("explicit jumps position immediately and remain stable after deferred callbacks", function()
   jump()
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
   flush()
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
 end)
 
-test("后续移动光标不会被旧跳转覆盖", function()
+test("subsequent cursor movement is not overwritten by an earlier jump", function()
   jump()
   vim.api.nvim_win_set_cursor(0, { 70, 6 })
   flush()
   eq(vim.api.nvim_win_get_cursor(0), { 70, 6 })
 end)
 
-test("连续跳转后，以最新位置为准", function()
+test("the latest position wins after consecutive jumps", function()
   jump(20)
   jump(80)
   flush()
   eq(vim.api.nvim_win_get_cursor(0), { 80, 3 })
 end)
 
-test("切换窗口后不再修改原窗口", function()
+test("switching windows prevents changes to the original window", function()
   jump()
   local source = vim.api.nvim_get_current_win()
   vim.cmd.vsplit()
@@ -92,7 +92,7 @@ test("切换窗口后不再修改原窗口", function()
   eq(vim.api.nvim_win_get_cursor(current), { 90, 7 })
 end)
 
-test("延迟恢复折叠后目标可见，越界列使用实际位置", function()
+test("targets remain visible after deferred fold restoration and columns are clamped", function()
   vim.cmd.edit(file)
   vim.schedule(function()
     local view = vim.fn.winsaveview()
@@ -106,7 +106,7 @@ test("延迟恢复折叠后目标可见，越界列使用实际位置", function
   eq(vim.fn.foldclosed(30), -1)
 end)
 
-test("旧跳转不会展开新位置的折叠", function()
+test("an earlier jump does not open folds at a new position", function()
   vim.cmd.edit(file)
   vim.cmd("60,80fold")
   jump()
@@ -116,7 +116,7 @@ test("旧跳转不会展开新位置的折叠", function()
   eq(vim.fn.foldclosed(60), 60)
 end)
 
-test("代码移动后的 extmark 跟踪仍保留", function()
+test("extmarks retain position tracking after code edits", function()
   vim.cmd.edit(file)
   local loc = store.list()[1]
   store.sync_buffer(vim.api.nvim_get_current_buf())
@@ -127,7 +127,7 @@ test("代码移动后的 extmark 跟踪仍保留", function()
   vim.api.nvim_buf_set_lines(0, 0, 1, false, {})
 end)
 
-test("Picker 正常确认后在原窗口跳转", function()
+test("picker confirmation jumps in the original window", function()
   local source = confirm()
   flush()
   eq(vim.api.nvim_get_current_win(), source)
@@ -135,7 +135,7 @@ test("Picker 正常确认后在原窗口跳转", function()
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
 end)
 
-test("Picker 确认后切换窗口，取消旧跳转", function()
+test("switching windows after picker confirmation cancels the pending jump", function()
   local buf = vim.api.nvim_create_buf(true, false)
   local other = vim.api.nvim_open_win(buf, false, { split = "right" })
   local source_buf = vim.api.nvim_get_current_buf()
@@ -147,7 +147,7 @@ test("Picker 确认后切换窗口，取消旧跳转", function()
   eq(vim.api.nvim_win_get_buf(source), source_buf)
 end)
 
-test("Picker 确认后切换 buffer，取消旧跳转", function()
+test("switching buffers after picker confirmation cancels the pending jump", function()
   confirm()
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_win_set_buf(0, buf)
@@ -155,7 +155,7 @@ test("Picker 确认后切换 buffer，取消旧跳转", function()
   eq(vim.api.nvim_get_current_buf(), buf)
 end)
 
-test("Picker 确认后移动光标，取消旧跳转", function()
+test("moving the cursor after picker confirmation cancels the pending jump", function()
   vim.cmd.edit(file)
   confirm()
   vim.api.nvim_win_set_cursor(0, { 70, 6 })
@@ -163,7 +163,7 @@ test("Picker 确认后移动光标，取消旧跳转", function()
   eq(vim.api.nvim_win_get_cursor(0), { 70, 6 })
 end)
 
-test("Picker 目标窗口关闭后，不跳到其他窗口", function()
+test("closing the picker target window does not redirect the jump", function()
   local buf = vim.api.nvim_create_buf(true, false)
   local other = vim.api.nvim_open_win(buf, false, { split = "right" })
   local source = confirm()
@@ -173,7 +173,7 @@ test("Picker 目标窗口关闭后，不跳到其他窗口", function()
   eq(vim.api.nvim_get_current_buf(), buf)
 end)
 
-test("真实 UI 中从输入模式按 Enter 可精确跳转", function()
+test("Enter in Insert mode jumps precisely in a real UI", function()
   local child = vim.fn.jobstart({ vim.v.progpath, "--embed", "-u", "NONE", "-i", "NONE", "-n" }, {
     rpc = true,
     env = { XDG_DATA_HOME = tmp .. "/insert-data" },
@@ -223,7 +223,7 @@ test("真实 UI 中从输入模式按 Enter 可精确跳转", function()
   assert(ok, err)
 end)
 
-test("稀疏编号在真实 Picker 中显示并可确认跳转", function()
+test("sparse numbers are displayed and confirmed correctly in the real picker", function()
   local loc = store.list()[1]
   assert(store.move(loc.id, 5))
   vim.cmd.edit(file)

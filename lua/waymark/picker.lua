@@ -1,5 +1,5 @@
--- Picker：基于 Snacks.picker（当前 LazyVim 配置已自带），不引入新依赖。
--- 若 Snacks 不存在则给出提示（不做 fallback UI，保持简单）。
+-- Picker: uses Snacks.picker (included in LazyVim), with no additional dependencies.
+-- Notify when Snacks is unavailable; keep the UI simple without a fallback.
 
 local store = require("waymark.store")
 local navigation = require("waymark.navigation")
@@ -16,8 +16,8 @@ local function entry(loc)
   local where = vim.fs.basename(loc.file) .. ":" .. loc.line
   return {
     text = ("%d. %s%s  %s"):format(loc.index, missing and "[missing] " or "", where, loc.label or ""),
-    -- snacks.picker 标准字段：preview / resolve 需要
-    -- 注意：不能把 waymark location 放进 `loc` 字段（snacks 保留给 LSP location）
+    -- Standard Snacks.picker fields used by preview / resolve.
+    -- Store Waymark data outside `loc`, which Snacks reserves for LSP locations.
     file = loc.file,
     pos = { loc.line, loc.col - 1 }, -- { 1-based line, 0-based byte col }
     waymark = loc,
@@ -28,7 +28,7 @@ local function confirm(picker, item)
   local root, symbol = store.project_root(), store.current_symbol()
   local current = vim.api.nvim_get_current_win()
   local win = picker.main
-  -- 先退出输入模式，避免退出时的光标左移被误判为后续导航。
+  -- Leave Insert mode first so its cursor shift is not mistaken for subsequent navigation.
   picker:norm(function()
     if picker.closed or vim.api.nvim_get_current_win() ~= current then
       return
@@ -40,7 +40,7 @@ local function confirm(picker, item)
 
     local buf = vim.api.nvim_win_get_buf(win)
     local cursor = vim.api.nvim_win_get_cursor(win)
-    -- 等 picker 完成窗口清理后再跳转；期间的新导航优先。
+    -- Jump after picker window cleanup; any intervening navigation takes precedence.
     vim.schedule(function()
       if
         vim.api.nvim_win_is_valid(win)
@@ -55,20 +55,20 @@ local function confirm(picker, item)
   end)
 end
 
----打开 picker；返回 snacks Picker 实例（便于测试/扩展）
+---Open the picker and return the Snacks Picker instance for tests / extensions.
 ---@return table|nil
 function M.open()
   store.ensure_loaded()
   store.pull_extmarks()
   local locs = store.list()
   if #locs == 0 then
-    store.notify("列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
+    store.notify("No marks in this set; use <leader>zz to add a position", vim.log.levels.INFO)
     return
   end
 
   local ok, Snacks = pcall(require, "snacks")
   if not ok then
-    store.notify("需要 snacks.picker（当前配置未安装）", vim.log.levels.WARN)
+    store.notify("snacks.picker is required but is not installed", vim.log.levels.WARN)
     return
   end
 
@@ -85,7 +85,7 @@ function M.open()
       waymark_delete = function(picker, item)
         if item then
           store.remove(item.waymark.id)
-          store.notify("已删除: " .. item.waymark.id)
+          store.notify("Deleted: " .. item.waymark.id)
         end
         picker:close()
       end,

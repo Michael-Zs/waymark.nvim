@@ -1,14 +1,14 @@
--- Popup manager：原生 floating window / buffer，无 UI framework 依赖。
+-- Popup manager: native floating window / buffer, with no UI framework dependency.
 --
--- 按键：
---   j/k      移动
---   <CR>     跳转并关闭
---   dd       删除当前行
---   C        清空当前分组
---   r        重命名 label
---   J / K    与下/上面对调（排序）
---   U        从 1 连续编号，填补空缺
---   q / Esc  关闭
+-- Keys:
+--   j/k      Move the cursor.
+--   <CR>     Jump and close.
+--   dd       Delete the current entry.
+--   C        Clear the current set.
+--   r        Rename the label.
+--   J / K    Swap with the next / previous entry.
+--   U        Renumber consecutively from 1, filling gaps.
+--   q / Esc  Close.
 
 local store = require("waymark.store")
 local navigation = require("waymark.navigation")
@@ -21,10 +21,10 @@ local buf = nil
 local prev_win = nil
 
 --==========================================================================
--- 渲染
+-- Rendering
 --==========================================================================
 
----计算每行的三段内容并渲染到 buffer，返回行数
+---Compute the three columns, render them into the buffer, and return the row count.
 local function render()
   local locs = store.list()
   local cells = {}
@@ -81,7 +81,7 @@ local function win_config(n_items, text_width)
   }
 end
 
----渲染后计算实际需要的宽度（用于窗口自适应）
+---Measure rendered content for automatic window sizing.
 local function content_width()
   local max = 0
   for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
@@ -91,7 +91,7 @@ local function content_width()
 end
 
 --==========================================================================
--- 操作
+-- Actions
 --==========================================================================
 
 local function cursor_index()
@@ -131,7 +131,7 @@ local function delete_current()
   local loc = locs[idx]
   if loc then
     store.remove(loc.id)
-    store.notify("已删除 " .. vim.fs.basename(loc.file) .. ":" .. loc.line)
+    store.notify("Deleted " .. vim.fs.basename(loc.file) .. ":" .. loc.line)
   end
   if #store.list() == 0 then
     M.close()
@@ -149,7 +149,7 @@ local function rename_current()
   if not loc then
     return
   end
-  -- 关闭 popup 再弹输入框，避免焦点/float 冲突；完成后重开刷新
+  -- Close before prompting to avoid focus / float conflicts; reopen afterward to refresh.
   M.close()
   vim.ui.input({
     prompt = "Waymark label: ",
@@ -175,7 +175,7 @@ local function move_current(delta)
   end
   store.move(loc.id, target.index)
   refresh()
-  -- 光标跟随移动的条目
+  -- Keep the cursor on the moved entry.
   vim.api.nvim_win_set_cursor(win, { idx + delta, 0 })
 end
 
@@ -215,7 +215,7 @@ function M.open()
   end
   local locs = store.list()
   if #locs == 0 then
-    store.notify("列表为空，先用 <leader>zz 添加位置", vim.log.levels.INFO)
+    store.notify("No marks in this set; use <leader>zz to add a position", vim.log.levels.INFO)
     return
   end
 
@@ -257,7 +257,7 @@ function M.open()
   map("C", function()
     local count = store.clear()
     M.close()
-    store.notify(("已清空当前分组（删除 %d 条）"):format(count), vim.log.levels.INFO)
+    store.notify(("Cleared the current set (removed %d marks)"):format(count), vim.log.levels.INFO)
   end, "clear current set")
   map("r", rename_current, "rename")
   map("J", function()
@@ -271,7 +271,7 @@ function M.open()
     refresh()
   end, "compact numbers")
 
-  -- 关联窗口关闭时的清理（如 :q 或其他方式关闭）
+  -- Clean up when the associated window closes, including via :q or other commands.
   vim.api.nvim_create_autocmd("WinClosed", {
     buffer = buf,
     once = true,

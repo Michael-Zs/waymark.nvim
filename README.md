@@ -1,6 +1,6 @@
 # waymark.nvim
 
-English | [简体中文](README.zh-CN.md)
+English | [Simplified Chinese](README.zh-CN.md)
 
 A lightweight location list where the basic unit is a **file + exact cursor position** (a single file can hold multiple marks).
 

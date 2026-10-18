@@ -1,18 +1,18 @@
--- Location 数据 + project-local 持久化 + extmark 运行时跟踪。
+-- Location data, project-local persistence, and runtime extmark tracking.
 --
--- 数据模型（每个 location）:
+-- Data model (per location):
 --   {
---     id    = "wm_...",          -- 稳定 id（与数组顺序无关，reorder 不变）
---     index = 1-based number,    -- 数字槽位，可有空缺；list() 仍返回按编号排序的连续数组
---     file  = "/abs/path",       -- 绝对路径，避免 cwd 变化失效
+--     id    = "wm_...",          -- Stable ID, independent of array order and reordering.
+--     index = 1-based number,    -- Numbered slot; gaps are allowed. list() returns a dense, sorted array.
+--     file  = "/abs/path",       -- Absolute path, unaffected by cwd changes.
 --     line  = 1-based line
---     col   = 1-based col        -- 内部统一 1-based，与 API 换算见 navigation
---     label = string|nil         -- 缺省为所在行文本的简短版本
+--     col   = 1-based col        -- Internally 1-based; see navigation for API conversions.
+--     label = string|nil         -- Defaults to a shortened version of the line text.
 --   }
 --
--- 存储（project-local）:
+-- Storage (project-local):
 --   stdpath("data")/waymark/<sha256(root):16>.json
---   runtime 用 extmark 跟随代码移动；持久化前把 extmark 位置回写。
+--   Runtime extmarks follow code edits; their positions are pulled back before persistence.
 
 local M = {}
 
@@ -21,21 +21,21 @@ local ns = vim.api.nvim_create_namespace("waymark")
 local symbols = { "q", "w", "e", "r" }
 
 local state = {
-  root = nil, -- 当前 project root（绝对路径）
-  locations = {}, -- 按 index 排序的连续 location 数组，不存放空槽位
+  root = nil, -- Current project root (absolute path).
+  locations = {}, -- Dense location array sorted by index; empty slots are omitted.
   symbol = "q",
-  symbols = {}, -- 所有分组都保留 extmark，仅当前分组显示 sign
+  symbols = {}, -- All sets keep extmarks; only the selected set displays signs.
 }
 
 --==========================================================================
--- 路径 / 工具
+-- Paths / utilities
 --==========================================================================
 
 function M.ns()
   return ns
 end
 
----buffer 文件名（绝对、规范化）；无名 buffer 返回 nil
+---Return the normalized absolute buffer filename, or nil for an unnamed buffer.
 function M.buf_path(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr or 0)
   if name == "" then
@@ -44,7 +44,7 @@ function M.buf_path(bufnr)
   return vim.fs.normalize(name)
 end
 
----project 标识：git root，否则 cwd
+---Identify the project by its Git root, falling back to cwd.
 function M.project_root()
   if vim.bo.buftype ~= "" and state.root then
     return state.root
@@ -82,7 +82,7 @@ local function sort_locations()
   end)
 end
 
----取行文本的简短版本作为缺省 label
+---Shorten the line text for use as a default label.
 function M.make_label(text, width)
   text = (text or ""):gsub("^%s+", "")
   if text == "" then
@@ -92,10 +92,10 @@ function M.make_label(text, width)
 end
 
 --==========================================================================
--- 加载 / 保存
+-- Loading / saving
 --==========================================================================
 
----从磁盘读出的单条 location 校验；坏条目跳过（返回 nil），不让整体失败
+---Validate a saved location; skip invalid entries by returning nil without failing the entire load.
 local function sanitize(loc)
   if type(loc) ~= "table" or type(loc.file) ~= "string" or loc.file == "" then
     return nil
@@ -121,7 +121,7 @@ local function sanitize_locations(entries)
   for _, loc in ipairs(type(entries) == "table" and entries or {}) do
     local s = sanitize(loc)
     if s then
-      -- 旧格式没有 index，沿用原列表编号；损坏的重复编号分配到空槽位。
+      -- Preserve list numbering for legacy entries without index; move duplicate numbers to free slots.
       s.index = s.index or (#locations + 1)
       while used[s.index] do
         s.index = s.index + 1
@@ -166,10 +166,10 @@ function M.load()
         state.symbols.q = sanitize_locations(data.locations)
       end
     elseif not decoded then
-      M.notify("数据文件损坏，已忽略: " .. path, vim.log.levels.WARN)
+      M.notify("Ignored corrupt data file: " .. path, vim.log.levels.WARN)
     end
   end
-  -- 重载或切换 project 时清理旧标记，避免遗留 gutter 编号。
+  -- Clear old marks when reloading or switching projects to avoid stale gutter numbers.
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(buf) then
       vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
@@ -178,7 +178,7 @@ function M.load()
   state.locations = state.symbols[state.symbol]
 end
 
----把 extmark 最新位置回写 location，然后写盘
+---Pull the latest extmark positions into locations, then save to disk.
 function M.save()
   M.pull_extmarks()
   local payload = {
@@ -212,16 +212,16 @@ function M.save()
     f:close()
   end)
   if not ok_w then
-    M.notify("无法写入 " .. path .. ": " .. tostring(err), vim.log.levels.WARN)
+    M.notify("Unable to write " .. path .. ": " .. tostring(err), vim.log.levels.WARN)
   end
 end
 
----确保当前 project 数据已加载；root 变化时先保存旧 project 再切换
+---Ensure the current project is loaded; save the previous project before switching roots.
 function M.ensure_loaded()
   local root = M.project_root()
   if root ~= state.root then
     if state.root then
-      M.save() -- 保存旧 project（内部会 pull 最新位置）
+      M.save() -- Save the previous project, pulling its latest positions first.
     end
     state.root = root
     M.load()
@@ -231,7 +231,7 @@ function M.ensure_loaded()
 end
 
 --==========================================================================
--- extmark 运行时跟踪
+-- Runtime extmark tracking
 --==========================================================================
 
 local function detach_extmark(loc)
@@ -246,14 +246,14 @@ local function sign_options(loc)
     return {}
   end
   return {
-    -- 原生 sign 最多占两列；大编号仍保留完整位置跟踪。
+    -- Native signs occupy at most two columns; large numbers still retain full position tracking.
     sign_text = loc.index <= 99 and tostring(loc.index) or "++",
     sign_hl_group = "WaymarkSign",
     priority = 20,
   }
 end
 
----编号变化时原地更新 sign，使用 extmark 的最新位置，避免回退代码编辑后的位移。
+---Update signs in place after numbering changes, preserving the latest positions after code edits.
 local function refresh_signs()
   for _, locations in pairs(state.symbols) do
     for _, loc in ipairs(locations) do
@@ -270,11 +270,11 @@ local function refresh_signs()
   end
 end
 
----切换独立分组，保留所有 extmark 的位置跟踪。
+---Select an independent set, preserving position tracking for every extmark.
 function M.select_symbol(symbol)
   M.ensure_loaded()
   if not state.symbols[symbol] then
-    M.notify("未知分组: " .. tostring(symbol), vim.log.levels.WARN)
+    M.notify("Unknown set: " .. tostring(symbol), vim.log.levels.WARN)
     return false
   end
   if symbol ~= state.symbol then
@@ -287,7 +287,7 @@ function M.select_symbol(symbol)
   return true
 end
 
----为单个 location 挂带编号 sign 的 extmark（buffer 内代码插入/删除时位置自动跟随）
+---Attach an extmark with a numbered sign to a location; it follows buffer insertions / deletions.
 function M.attach_extmark(loc, bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return
@@ -300,8 +300,8 @@ function M.attach_extmark(loc, bufnr)
   end
 end
 
----为指定 buffer 的所有 location（重新）挂 extmark。
----已有有效 extmark 的跳过（避免重挂抹掉 extmark 对代码编辑的漂移跟踪）。
+---Attach or restore extmarks for all locations in the given buffer.
+---Skip valid extmarks to preserve position changes tracked during code edits.
 function M.sync_buffer(bufnr)
   if not vim.api.nvim_buf_is_loaded(bufnr) then
     return
@@ -316,7 +316,7 @@ function M.sync_buffer(bufnr)
         local attached = false
         if loc.ext and loc.ext.buf == bufnr then
           local ok, pos = pcall(vim.api.nvim_buf_get_extmark_by_id, bufnr, ns, loc.ext.id, {})
-          -- 不存在的 extmark 返回 {-1, -1}
+          -- Missing extmarks may return {-1, -1}.
           attached = ok and type(pos) == "table" and pos[1] ~= nil and pos[1] >= 0
         end
         if not attached then
@@ -335,7 +335,7 @@ function M.sync_all_buffers()
   end
 end
 
----把所有仍有效的 extmark 位置回写到 location（保存/跳转前调用）
+---Pull all valid extmark positions into locations before saving / jumping.
 function M.pull_extmarks()
   for _, locations in pairs(state.symbols) do
     for _, loc in ipairs(locations) do
@@ -349,7 +349,7 @@ function M.pull_extmarks()
   end
 end
 
----只回写某个 buffer 的 extmark（add 去重检测前用，避免代码移动后误判重复）
+---Pull one buffer's extmarks before duplicate detection so code edits do not produce false duplicates.
 function M.pull_buffer(bufnr)
   local path = M.buf_path(bufnr)
   if not path then
@@ -366,11 +366,11 @@ function M.pull_buffer(bufnr)
 end
 
 --==========================================================================
--- 增删改查 / 排序
+-- CRUD / ordering
 --==========================================================================
 
----返回按编号排序的连续数组，仅含实际条目；数字槽位使用 loc.index / get_index()。
----浅拷贝，mutate 请走本模块 API。
+---Return a dense array of existing entries sorted by number; use loc.index / get_index() for slots.
+---This is a shallow copy; use this module's API for mutations.
 function M.list()
   return vim.list_extend({}, state.locations)
 end
@@ -389,7 +389,7 @@ function M.get(id)
   return i and state.locations[i] or nil
 end
 
----返回条目的数字槽位，不是 list() 中的数组下标。
+---Return the entry's numbered slot, not its array position in list().
 function M.index_of(id)
   local loc = M.get(id)
   return loc and loc.index or nil
@@ -403,12 +403,12 @@ function M.get_index(index)
   end
 end
 
----添加 location。相同 file+line+col 已存在时返回 (existing, false)，不产生重复。
----新条目使用最小空闲编号。
+---Add a location. Return (existing, false) for a matching file+line+col without creating a duplicate.
+---New entries use the lowest free number.
 ---@return table location
 ---@return boolean created
 function M.add(file, line, col, label)
-  M.pull_buffer(0) -- 代码可能已移动，先同步当前 buffer 已有位置
+  M.pull_buffer(0) -- Synchronize existing positions in the current buffer after code edits.
   for _, loc in ipairs(state.locations) do
     if loc.file == file and loc.line == line and loc.col == col then
       return loc, false
@@ -424,7 +424,7 @@ function M.add(file, line, col, label)
   return M.set_index(index, file, line, col, label)
 end
 
----更新 location 的位置和 label，保留稳定 id / 列表顺序，并把 extmark 移到当前 buffer。
+---Update a location and label, preserving its stable ID / order and moving its extmark to the current buffer.
 ---@return boolean ok
 function M.update(id, file, line, col, label)
   local loc = M.get(id)
@@ -437,7 +437,7 @@ function M.update(id, file, line, col, label)
   return true
 end
 
----设置指定数字槽位，不存在时直接创建；允许不同槽位指向相同位置。
+---Set a numbered slot, creating it if empty; different slots may point to the same position.
 ---@return table|nil location
 ---@return boolean created
 function M.set_index(index, file, line, col, label)
@@ -469,7 +469,7 @@ function M.remove(id)
   return true
 end
 
----清空当前分组，移除其所有 extmark 并一次性保存。
+---Clear the current set, remove all its extmarks, and save once.
 ---@return integer removed
 function M.clear()
   local count = #state.locations
@@ -484,7 +484,7 @@ function M.clear()
   return count
 end
 
----修改 label（label 为空串/nil 时清除）
+---Rename a label; nil or an empty string clears it.
 ---@return boolean ok
 function M.rename(id, label)
   local loc = M.get(id)
@@ -496,7 +496,7 @@ function M.rename(id, label)
   return true
 end
 
----把 id 移到新编号；目标已占用时在现有编号间重排，空缺编号保持不变。
+---Move an ID to a new number; reorder occupied slots when the target is taken, preserving gaps.
 ---@return boolean ok
 function M.move(id, new_index)
   local i = position_of(id)
@@ -528,7 +528,7 @@ function M.move(id, new_index)
   return true
 end
 
----按当前顺序从 1 连续编号，填补空缺，保留条目及其 extmark。
+---Renumber consecutively from 1 in the current order, preserving entries and their extmarks.
 ---@return boolean changed
 function M.compact()
   local changed = false
@@ -546,7 +546,7 @@ function M.compact()
 end
 
 --==========================================================================
--- 初始化
+-- Initialization
 --==========================================================================
 
 function M.init()

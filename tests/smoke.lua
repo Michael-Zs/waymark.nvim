@@ -1,9 +1,9 @@
--- waymark.nvim 冒烟测试（两阶段，验证持久化需跨进程）
+-- waymark.nvim smoke test (two phases to verify persistence across processes).
 --
--- 运行（在仓库根目录）:
+-- Run from the repository root:
 --   WAYMARK_PLUGIN=$PWD WAYMARK_TMP=$PWD/.tmp-smoke XDG_DATA_HOME=$PWD/.tmp-smoke/data \
 --     WAYMARK_PHASE=1 nvim --headless -l tests/smoke.lua
---   ... WAYMARK_PHASE=2 ... 同上
+--   Repeat with WAYMARK_PHASE=2 using the same paths.
 
 local uv = vim.uv
 
@@ -46,90 +46,92 @@ if phase == 1 then
   local store = wm.store
   local nav = require("waymark.navigation")
 
-  -- Add：a.py:5 ------------------------------------------------------------
+  -- Add: a.py:5 ------------------------------------------------------------
   vim.cmd("edit " .. vim.fn.fnameescape(tmp .. "/a.py"))
   vim.api.nvim_win_set_cursor(0, { 5, 0 })
   wm.add()
-  check("add a:5 → 列表长度 1", #store.list() == 1)
+  check("add a:5 → list length 1", #store.list() == 1)
 
-  -- 重复添加同位置 ----------------------------------------------------------
+  -- Add the same position again --------------------------------------------
   wm.add()
-  check("重复 add 同一位置不产生重复", #store.list() == 1)
+  check("adding the same position does not create duplicates", #store.list() == 1)
 
-  -- 同文件第二个位置 --------------------------------------------------------
+  -- Second position in the same file ---------------------------------------
   vim.api.nvim_win_set_cursor(0, { 6, 0 })
   wm.add()
-  check("同文件多位置允许 (a:5, a:6)", #store.list() == 2)
+  check("multiple positions in one file are allowed (a:5, a:6)", #store.list() == 2)
 
-  -- 跨文件 ------------------------------------------------------------------
+  -- Cross-file marks -------------------------------------------------------
   vim.cmd("edit " .. vim.fn.fnameescape(tmp .. "/b.py"))
   vim.api.nvim_win_set_cursor(0, { 3, 2 })
   wm.add()
   local locs = store.list()
-  check("跨文件 add (b:3)", #locs == 3 and locs[3].file == tmp .. "/b.py")
-  -- 注：normal 模式 cursor col 被 Neovim 钳制在行内字符上（"b3" 2 字符 → col0=1）
-  check("col 按 1-based 保存", locs[3].col == 2)
-  check("id 稳定非空", locs[1].id ~= locs[2].id and locs[1].id ~= "")
+  check("add across files (b:3)", #locs == 3 and locs[3].file == tmp .. "/b.py")
+  -- Normal mode clamps the cursor to a character in the line ("b3" has 2 characters → col0=1).
+  check("columns are saved as 1-based", locs[3].col == 2)
+  check("IDs are distinct and nonempty", locs[1].id ~= locs[2].id and locs[1].id ~= "")
 
-  -- extmark 跟随：a.py 顶部插入 3 行 ----------------------------------------
+  -- Extmark tracking: insert 3 lines at the start of a.py --------------------
   vim.cmd("edit " .. vim.fn.fnameescape(tmp .. "/a.py"))
   local buf = vim.api.nvim_get_current_buf()
   vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "", "", "" })
   store.pull_extmarks()
   locs = store.list()
-  check("extmark 跟随: a:5 → a:8", locs[1].line == 8)
-  check("extmark 跟随: a:6 → a:9", locs[2].line == 9)
+  check("extmark tracking: a:5 → a:8", locs[1].line == 8)
+  check("extmark tracking: a:6 → a:9", locs[2].line == 9)
 
   -- jump ------------------------------------------------------------------
-  check("jump 到 a:8", nav.jump(locs[1]) and vim.api.nvim_win_get_cursor(0)[1] == 8)
-  check("jump 到 b:3（跨文件切 buffer）", nav.jump(locs[3])
-    and vim.fs.basename(store.buf_path(0)) == "b.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 3)
+  check("jump to a:8", nav.jump(locs[1]) and vim.api.nvim_win_get_cursor(0)[1] == 8)
+  check(
+    "jump to b:3 (switch buffers across files)",
+    nav.jump(locs[3]) and vim.fs.basename(store.buf_path(0)) == "b.py" and vim.api.nvim_win_get_cursor(0)[1] == 3
+  )
 
-  -- step 循环: 当前 b:3(idx3) → next: idx1(a:8) → idx2(a:9) → idx3(b:3) → idx1
+  -- Wraparound: b:3(idx3) → next: idx1(a:8) → idx2(a:9) → idx3(b:3) → idx1.
   nav.step(1)
-  check("step(1) 循环回到 a:8", store.buf_path(0) == tmp .. "/a.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 8)
+  check("step(1) wraps to a:8", store.buf_path(0) == tmp .. "/a.py" and vim.api.nvim_win_get_cursor(0)[1] == 8)
   nav.step(1)
   check("step(1) → a:9", vim.api.nvim_win_get_cursor(0)[1] == 9)
   nav.step(1)
-  check("step(1) → b:3", store.buf_path(0) == tmp .. "/b.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 3)
+  check("step(1) → b:3", store.buf_path(0) == tmp .. "/b.py" and vim.api.nvim_win_get_cursor(0)[1] == 3)
   nav.step(-1)
-  check("step(-1) → a:9", store.buf_path(0) == tmp .. "/a.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 9)
+  check("step(-1) → a:9", store.buf_path(0) == tmp .. "/a.py" and vim.api.nvim_win_get_cursor(0)[1] == 9)
 
   -- rename / reorder -------------------------------------------------------
   store.rename(locs[2].id, "RENAMED")
-  local moved_id = locs[1].id -- move 前记录（list() 是快照，但这里防引用歧义）
+  local moved_id = locs[1].id -- Capture before moving to avoid reference ambiguity in the shallow list snapshot.
   store.move(moved_id, 3) -- [a:8, a:9, b:3] → [a:9, b:3, a:8]
   local ordered = store.list()
-  check("rename 生效", ordered[1].label == "RENAMED")
-  check("reorder 生效（id 不变）", ordered[3].id == moved_id)
+  check("rename takes effect", ordered[1].label == "RENAMED")
+  check("reordering preserves IDs", ordered[3].id == moved_id)
 
-  -- goto_index 数字直跳 ------------------------------------------------------
-  check("goto_index(3) → a:8", nav.goto_index(3)
-    and vim.fs.basename(store.buf_path(0)) == "a.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 8)
-  check("goto_index(2) → b:3", nav.goto_index(2)
-    and vim.fs.basename(store.buf_path(0)) == "b.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 3)
-  check("goto_index(99) 超出范围返回 false", nav.goto_index(99) == false)
-  -- goto_index 后 next 应从该位置继续：当前 b:3(idx2) → next → idx3(a:8)
+  -- Direct numbered jumps --------------------------------------------------
+  check(
+    "goto_index(3) → a:8",
+    nav.goto_index(3) and vim.fs.basename(store.buf_path(0)) == "a.py" and vim.api.nvim_win_get_cursor(0)[1] == 8
+  )
+  check(
+    "goto_index(2) → b:3",
+    nav.goto_index(2) and vim.fs.basename(store.buf_path(0)) == "b.py" and vim.api.nvim_win_get_cursor(0)[1] == 3
+  )
+  check("goto_index(99) returns false for an absent number", nav.goto_index(99) == false)
+  -- Continue after goto_index: b:3(idx2) → next → idx3(a:8).
   nav.step(1)
-  check("goto_index 后 step(1) 接续 a:8", store.buf_path(0) == tmp .. "/a.py"
-    and vim.api.nvim_win_get_cursor(0)[1] == 8)
+  check(
+    "step(1) continues to a:8 after goto_index",
+    store.buf_path(0) == tmp .. "/a.py" and vim.api.nvim_win_get_cursor(0)[1] == 8
+  )
 
-  -- manager popup 冒烟 -------------------------------------------------------
+  -- Popup manager smoke test -----------------------------------------------
   local ui = require("waymark.ui")
   ui.open()
-  check("manager 打开", ui.is_open())
+  check("manager opens", ui.is_open())
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-  check("manager 渲染了 3 行", #lines == 3)
+  check("manager renders 3 rows", #lines == 3)
   ui.close()
-  check("manager 关闭", not ui.is_open())
+  check("manager closes", not ui.is_open())
 
-  -- 记录 id，phase2 验证稳定性 ----------------------------------------------
+  -- Save IDs to verify stability in phase 2 ---------------------------------
   local ids = {}
   for i, loc in ipairs(store.list()) do
     ids[i] = loc.id
@@ -138,7 +140,7 @@ if phase == 1 then
 
   store.shutdown()
 elseif phase == 2 then
-  -- 模拟 b.py 被删除 --------------------------------------------------------
+  -- Simulate deletion of b.py -----------------------------------------------
   uv.fs_unlink(tmp .. "/b.py")
 
   vim.cmd("cd " .. vim.fn.fnameescape(tmp))
@@ -149,11 +151,10 @@ elseif phase == 2 then
   local nav = require("waymark.navigation")
 
   local locs = store.list()
-  check("持久化: 3 条 location", #locs == 3)
-  check("持久化: 顺序 [a:9, b:3, a:8]", locs[1].line == 9 and locs[2].file:find("b.py")
-    and locs[3].line == 8)
-  check("持久化: label 保留", locs[1].label == "RENAMED")
-  check("持久化: extmark 更新后的行号 (8/9)", locs[3].line == 8 and locs[1].line == 9)
+  check("persistence: 3 locations", #locs == 3)
+  check("persistence: order [a:9, b:3, a:8]", locs[1].line == 9 and locs[2].file:find("b.py") and locs[3].line == 8)
+  check("persistence: labels are preserved", locs[1].label == "RENAMED")
+  check("persistence: updated extmark line numbers (8/9)", locs[3].line == 8 and locs[1].line == 9)
 
   local f = io.open(tmp .. "/ids.txt")
   local ids = {}
@@ -163,16 +164,18 @@ elseif phase == 2 then
     end
     f:close()
   end
-  check("持久化: id 跨重启稳定", locs[1].id == ids[1] and locs[2].id == ids[2]
-    and locs[3].id == ids[3])
+  check(
+    "persistence: IDs are stable across restarts",
+    locs[1].id == ids[1] and locs[2].id == ids[2] and locs[3].id == ids[3]
+  )
 
-  -- 缺失文件 ----------------------------------------------------------------
+  -- Missing files ----------------------------------------------------------
   local missing = locs[2]
-  check("b.py 标记 missing", not store.file_exists(missing.file))
+  check("b.py is detected as missing", not store.file_exists(missing.file))
   local ok_jump = nav.jump(missing)
-  check("跳转 missing 文件不崩溃且失败", ok_jump == false)
+  check("jumping to a missing file fails without crashing", ok_jump == false)
 
-  -- manager 显示 [missing] ---------------------------------------------------
+  -- Manager displays [missing] ----------------------------------------------
   local ui = require("waymark.ui")
   ui.open()
   local found_missing = false
@@ -186,21 +189,21 @@ elseif phase == 2 then
       end
     end
   end
-  check("manager 显示 [missing] 标记", found_missing)
+  check("manager displays the [missing] indicator", found_missing)
   ui.close()
 
-  -- remove 后恢复有效跳转 ----------------------------------------------------
+  -- Valid jumps after removing a missing entry ------------------------------
   store.remove(missing.id)
-  check("删除 missing location", #store.list() == 2)
-  check("删除后仍可跳转 a:9", nav.jump(store.list()[1]))
+  check("remove the missing location", #store.list() == 2)
+  check("jump to a:9 still works after deletion", nav.jump(store.list()[1]))
 
-  -- 数据文件位置 -------------------------------------------------------------
+  -- Data file location -----------------------------------------------------
   local data_dir = vim.fn.stdpath("data") .. "/waymark"
   local n = 0
   for _ in vim.fs.dir(data_dir) do
     n = n + 1
   end
-  check("JSON 存储于 stdpath('data')/waymark/", n >= 1)
+  check("JSON is stored in stdpath('data')/waymark/", n >= 1)
 
   store.shutdown()
 end

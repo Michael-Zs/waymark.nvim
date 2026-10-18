@@ -1,4 +1,4 @@
--- 运行：nvim --headless -u NONE -i NONE -n -l tests/signs.lua
+-- Run: nvim --headless -u NONE -i NONE -n -l tests/signs.lua
 local root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 local tmp = vim.fn.tempname()
 vim.opt.rtp:prepend(root)
@@ -34,7 +34,7 @@ local function marks(buf)
   return vim.api.nvim_buf_get_extmarks(buf or 0, store.ns(), 0, -1, { details = true })
 end
 
--- 读取实际 sign column 的渲染文本，而不只检查 extmark 配置。
+-- Read actual sign column rendering rather than only checking extmark options.
 local function gutter(line)
   vim.cmd.redraw()
   return vim.trim(vim.api.nvim_eval_statusline("%s", {
@@ -48,7 +48,7 @@ local function test(name, fn)
   tests[#tests + 1] = { name, fn }
 end
 
-test("添加和可视设置在 gutter 显示编号，不修改文件内容", function()
+test("adding and Visual updates display gutter numbers without modifying file contents", function()
   vim.api.nvim_win_set_cursor(0, { 3, 2 })
   press(" zz")
   eq(gutter(3), "1")
@@ -61,7 +61,7 @@ test("添加和可视设置在 gutter 显示编号，不修改文件内容", fun
   eq(vim.api.nvim_get_hl(0, { name = "WaymarkSign", link = true }).link, "Special")
 end)
 
-test("同一行多个编号和两位数显示为原生 sign，大编号仍能跟踪", function()
+test("multiple and two-digit numbers use native signs while large numbers still track edits", function()
   store.set_index(5, source, 3, 1)
   store.set_index(12, source, 3, 4)
   local text = gutter(3)
@@ -75,7 +75,7 @@ test("同一行多个编号和两位数显示为原生 sign，大编号仍能跟
   eq(gutter(9), "++")
 end)
 
-test("位置跨文件更新和删除会清理旧 gutter 编号", function()
+test("cross-file updates and deletions remove old gutter numbers", function()
   local loc = store.set_index(5, source, 3, 2)
   local source_buf = vim.api.nvim_get_current_buf()
   vim.cmd.edit(target)
@@ -88,7 +88,7 @@ test("位置跨文件更新和删除会清理旧 gutter 编号", function()
   eq(#marks(), 0)
 end)
 
-test("编辑后重新编号使用最新位置，撤销仍能跟踪", function()
+test("renumbering after edits uses current positions and continues tracking undo", function()
   local loc = store.set_index(5, source, 3, 2)
   local ext = vim.deepcopy(loc.ext)
   press("ggOinserted<Esc>")
@@ -104,7 +104,7 @@ test("编辑后重新编号使用最新位置，撤销仍能跟踪", function()
   eq({ loc.line, loc.col }, { 3, 2 })
 end)
 
-test("manager J/U/dd 同步更新 gutter 编号", function()
+test("manager J/U/dd actions synchronize gutter numbers", function()
   store.set_index(1, source, 3, 1)
   store.set_index(3, source, 8, 1)
   store.set_index(5, source, 12, 1)
@@ -117,7 +117,7 @@ test("manager J/U/dd 同步更新 gutter 编号", function()
   eq(gutter(3), "2")
 end)
 
-test("重载不遗留重复标记，重新打开文件恢复 gutter 编号", function()
+test("reloads do not duplicate marks and reopening files restores gutter numbers", function()
   store.set_index(5, source, 3, 2)
   for _ = 1, 2 do
     wm.setup()
@@ -132,7 +132,7 @@ test("重载不遗留重复标记，重新打开文件恢复 gutter 编号", fun
   eq(gutter(3), "5")
 end)
 
-test("切换 project 清理旧编号并在返回时恢复，保留其他插件的 sign", function()
+test("project switches clear and restore numbers while preserving other plugins' signs", function()
   local other = tmp .. "/other"
   vim.fn.mkdir(other .. "/.git", "p")
   vim.fn.writefile(lines, other .. "/other.txt")

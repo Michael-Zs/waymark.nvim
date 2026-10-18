@@ -1,22 +1,22 @@
--- waymark.nvim — 轻量 Location List（file + exact cursor position）
+-- waymark.nvim — lightweight location list (file + exact cursor position).
 --
--- 所有 keymap 集中在 setup() 中配置，如需调整传入:
+-- Configure all keymaps through setup():
 --   require("waymark").setup({
 --     keys = { add = "<leader>zz", prev = "[z", next = "]z",
 --              picker = "<leader>zp", manager = "<leader>zm", view = "<leader>zv",
 --              jump_prefix = "<leader>" },
 --   })
 --
--- 公共 API:
---   require("waymark").add()        添加当前位置
---   .next() / .prev()               下一个 / 上一个（循环）
---   .goto_index(n)                  直跳第 n 个（<leader>1..9 的底层）
---   .update_index(n)                用当前位置设置编号 n，不存在时按该编号创建
---   .view()                         通知显示当前文件的位置列表
---   .select_symbol("q")             切换独立分组（q / w / e / r）
---   require("waymark.picker").open()  搜索
---   require("waymark.ui").open()      管理 popup
---   require("waymark.store")          数据层（list/get/remove/rename/move/...）
+-- Public API:
+--   require("waymark").add()         Add the current position.
+--   .next() / .prev()                Next / previous mark, wrapping around.
+--   .goto_index(n)                   Jump to number n (used by <leader>1..9).
+--   .update_index(n)                 Set number n to the current position, creating it if empty.
+--   .view()                          Notify the current file's marks.
+--   .select_symbol("q")              Select an independent set (q / w / e / r).
+--   require("waymark.picker").open()  Search marks.
+--   require("waymark.ui").open()      Open the popup manager.
+--   require("waymark.store")          Data layer (list/get/remove/rename/move/...).
 
 local store = require("waymark.store")
 local navigation = require("waymark.navigation")
@@ -26,8 +26,8 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager,view,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r} }，
----单项设 false 可禁用该键；jump_prefix 生成 <prefix>1..9 的普通模式跳转 / 可视模式更新键
+---@param opts table|nil { keys = {add,prev,next,picker,manager,view,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r} }
+---Set a key to false to disable it; jump_prefix maps <prefix>1..9 to Normal jumps / Visual updates.
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
@@ -47,7 +47,7 @@ function M.setup(opts)
   store.init()
 
   local function map(key, fn, desc, mode)
-    if not key then -- false/nil = 禁用该键
+    if not key then -- false/nil disables the key.
       return
     end
     vim.keymap.set(mode or "n", key, fn, { desc = desc })
@@ -69,13 +69,13 @@ function M.setup(opts)
     end, "Waymark select [" .. symbol .. "]")
   end
 
-  if keys.jump_prefix then -- <prefix>1..9 → 普通模式跳转，可视模式更新第 N 个
+  if keys.jump_prefix then -- <prefix>1..9 jumps in Normal mode and updates the number in Visual mode.
     for d = 1, 9 do
       map(keys.jump_prefix .. d, function()
         navigation.goto_index(d)
       end, "Waymark jump #" .. d)
       map(keys.jump_prefix .. d, function()
-        vim.cmd("normal! \27") -- 退出可视模式，保留当前光标位置
+        vim.cmd("normal! \27") -- Leave Visual mode, keeping the current cursor position.
         M.update_index(d)
       end, "Waymark update #" .. d, "x")
     end
@@ -99,12 +99,12 @@ function M.setup(opts)
   })
 end
 
----添加当前位置（<leader>zz）
+---Add the current position (<leader>zz).
 function M.add()
   store.ensure_loaded()
   local file = store.buf_path(0)
   if not file then
-    store.notify("当前 buffer 没有关联文件", vim.log.levels.WARN)
+    store.notify("The current buffer has no associated file", vim.log.levels.WARN)
     return
   end
   local line, col0 = unpack(vim.api.nvim_win_get_cursor(0))
@@ -120,12 +120,12 @@ function M.add()
   end
 end
 
----通过一条通知显示当前文件的 Waymark（编号、最新行列、标签）。
+---Notify the current file's marks in one message (number, latest line:column, label).
 function M.view()
   store.ensure_loaded()
   local file = store.buf_path(0)
   if not file then
-    store.notify("当前 buffer 没有关联文件", vim.log.levels.INFO)
+    store.notify("The current buffer has no associated file", vim.log.levels.INFO)
     return
   end
   store.pull_buffer(0)
@@ -137,7 +137,7 @@ function M.view()
     end
   end
   if #lines == 0 then
-    store.notify("当前文件没有 Waymark", vim.log.levels.INFO)
+    store.notify("No Waymarks in the current file", vim.log.levels.INFO)
     return
   end
   table.insert(lines, 1, vim.fs.basename(file))
@@ -153,7 +153,7 @@ function M.select_symbol(symbol)
   if not store.select_symbol(symbol) then
     return false
   end
-  store.notify(("已选择分组 %s（共 %d 条）"):format(symbol, #store.list()), vim.log.levels.INFO)
+  store.notify(("Selected set %s (%d marks)"):format(symbol, #store.list()), vim.log.levels.INFO)
   return true
 end
 
@@ -165,24 +165,24 @@ function M.previous()
   navigation.previous()
 end
 
----直跳编号 n 的 waymark（1-based，编号同 add 提示 / manager 左列，可有空缺）
+---Jump to Waymark number n (1-based, as shown in notifications / manager; gaps are allowed).
 function M.goto_index(n)
   return navigation.goto_index(n)
 end
 
----用当前文件和光标位置设置编号 n；已有条目保留 id，空槽位直接创建
+---Set number n to the current file and cursor; preserve an existing ID or create an empty slot.
 ---@param n integer
 ---@return boolean ok
 function M.update_index(n)
   store.ensure_loaded()
   n = math.floor(tonumber(n) or 0)
   if n < 1 or n == math.huge or n ~= n then
-    store.notify("Waymark 编号必须大于 0", vim.log.levels.WARN)
+    store.notify("Waymark numbers must be greater than 0", vim.log.levels.WARN)
     return false
   end
   local file = store.buf_path(0)
   if not file then
-    store.notify("当前 buffer 没有关联文件", vim.log.levels.WARN)
+    store.notify("The current buffer has no associated file", vim.log.levels.WARN)
     return false
   end
   local line, col0 = unpack(vim.api.nvim_win_get_cursor(0))
