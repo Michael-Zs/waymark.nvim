@@ -299,6 +299,79 @@ test("manager 显示实际编号，重排/删除/跳转使用正确条目", func
   eq(vim.api.nvim_win_get_cursor(0), { 5, 0 })
 end)
 
+test("manager U 填补编号空缺，保留条目和光标并立即持久化", function()
+  for _, n in ipairs({ 2, 4 }) do
+    store.remove(store.get_index(n).id)
+  end
+  local before = vim.deepcopy(store.list())
+  local ui = require("waymark.ui")
+  press(" bm")
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_cursor(win, { 2, 0 })
+  press("U")
+  eq(ui.is_open(), true)
+  eq(vim.api.nvim_get_current_win(), win)
+  eq(vim.api.nvim_win_get_cursor(win)[1], 2)
+  local rendered = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  eq(#rendered, 3)
+  for i, loc in ipairs(before) do
+    loc.index = i
+    eq(store.get_index(i), loc)
+    eq(rendered[i]:match("^%s*(%d+)"), tostring(i))
+  end
+  eq(store.get_index(5), nil)
+  press("U")
+  eq(store.list(), before)
+  eq(vim.api.nvim_win_get_cursor(win)[1], 2)
+
+  local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n")).locations
+  local expected = vim.deepcopy(before)
+  for _, loc in ipairs(expected) do
+    loc.ext = nil
+  end
+  eq(saved, expected)
+  ui.close()
+  store.init()
+  for i, loc in ipairs(before) do
+    eq(store.get_index(i).id, loc.id)
+  end
+  press(" 2")
+  eq(vim.api.nvim_win_get_cursor(0), { 3, 0 })
+end)
+
+test("manager U 从 1 开始编号并保留 J/K 调整后的顺序", function()
+  for _, n in ipairs({ 1, 3, 4 }) do
+    store.remove(store.get_index(n).id)
+  end
+  local second, fifth = store.get_index(2).id, store.get_index(5).id
+  local ui = require("waymark.ui")
+  ui.open()
+  press("JU")
+  eq(store.get_index(1).id, fifth)
+  eq(store.get_index(2).id, second)
+  eq(store.get_index(5), nil)
+  eq(vim.api.nvim_win_get_cursor(0)[1], 2)
+  press("<CR>")
+  eq(ui.is_open(), false)
+  eq(vim.api.nvim_win_get_cursor(0), { 2, 0 })
+end)
+
+test("单条稀疏编号可整理为空缺消除后的 1，空列表可安全整理", function()
+  for _, n in ipairs({ 1, 2, 3, 4 }) do
+    store.remove(store.get_index(n).id)
+  end
+  local id = store.get_index(5).id
+  require("waymark.ui").open()
+  press("U")
+  eq(#store.list(), 1)
+  eq(store.get_index(1).id, id)
+  eq(vim.api.nvim_get_current_line():match("^%s*(%d+)"), "1")
+  press("dd")
+  eq(store.compact(), false)
+  eq(store.list(), {})
+end)
+
 test("旧版持久化数据按原顺序迁移编号并保留 id/标签", function()
   for _, loc in ipairs(store.list()) do
     store.remove(loc.id)

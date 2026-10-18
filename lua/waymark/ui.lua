@@ -6,6 +6,7 @@
 --   dd       删除当前行
 --   r        重命名 label
 --   J / K    与下/上面对调（排序）
+--   U        从 1 连续编号，填补空缺
 --   q / Esc  关闭
 
 local store = require("waymark.store")
@@ -248,6 +249,10 @@ function M.open()
   map("K", function()
     move_current(-1)
   end, "move up")
+  map("U", function()
+    store.compact()
+    refresh()
+  end, "compact numbers")
 
   -- 关联窗口关闭时的清理（如 :q 或其他方式关闭）
   vim.api.nvim_create_autocmd("WinClosed", {

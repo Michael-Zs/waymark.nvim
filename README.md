@@ -25,11 +25,13 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `<leader>1..9` | Jump directly to mark 1-9 (jumps immediately on keypress) |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>sn` | Search marks with Snacks picker (`<C-d>` to delete) |
-| `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `q` close |
+| `<leader>bm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
 
 For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. You can then press `<leader>5` in Normal mode to jump back to it. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
 
 Deleting a mark leaves its number free without renumbering the others. The manager and picker show the actual numbers, and previous/next navigation skips empty numbers. `J`/`K` in the manager reorder marks between occupied numbers.
+
+Press uppercase `U` in the manager to renumber all marks consecutively from 1 in their current order, e.g. **1, 3, 5 → 1, 2, 3**. The new numbers are saved immediately, and the cursor stays on the same entry.
 
 ### Custom keymaps
 
@@ -69,7 +71,7 @@ Restart Neovim or run `:Lazy reload waymark.nvim` for changes to take effect.
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
 require("waymark").update_index(n) -- create or update exactly number n with the current position
-require("waymark.store"):list/get/get_index/set_index/add/update/remove/rename/move/save
+require("waymark.store"):list/get/get_index/set_index/add/update/remove/rename/move/compact/save
 ```
 
 `store.list()` returns a dense array of existing marks sorted by `loc.index`; use `store.get_index(n)` to look up a specific number, which may be empty.

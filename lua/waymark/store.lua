@@ -417,6 +417,22 @@ function M.move(id, new_index)
   return true
 end
 
+---按当前顺序从 1 连续编号，填补空缺，保留条目及其 extmark。
+---@return boolean changed
+function M.compact()
+  local changed = false
+  for i, loc in ipairs(state.locations) do
+    if loc.index ~= i then
+      loc.index = i
+      changed = true
+    end
+  end
+  if changed then
+    M.save()
+  end
+  return changed
+end
+
 --==========================================================================
 -- 初始化
 --==========================================================================
