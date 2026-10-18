@@ -26,6 +26,7 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
 | `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
+| `<leader>zv` | Show only the current file's marks in one notification (number, line:column, label) |
 
 For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. You can then press `<leader>5` in Normal mode to jump back to it. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
 
@@ -45,7 +46,7 @@ All keymaps live in the plugin's `setup()` and are overridden via the `keys` tab
     keys = {
       add = "<leader>x",  -- change the add key
       picker = false,     -- disable the picker key; open it via :lua require("waymark.picker").open()
-      -- prev / next / manager work the same way
+      -- prev / next / manager / view work the same way
       jump_prefix = false, -- disable numeric jumps and Visual updates; or use another prefix, e.g. "g"
     },
   },
@@ -77,6 +78,7 @@ The `WaymarkSign` highlight group defaults to `Special`. Signs use priority 20 a
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
 require("waymark").update_index(n) -- create or update exactly number n with the current position
+require("waymark").view() -- notify the current file's marks with their latest positions
 require("waymark.store"):list/get/get_index/set_index/add/update/remove/rename/move/compact/save
 ```
 

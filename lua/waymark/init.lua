@@ -3,7 +3,7 @@
 -- 所有 keymap 集中在 setup() 中配置，如需调整传入:
 --   require("waymark").setup({
 --     keys = { add = "<leader>zz", prev = "[z", next = "]z",
---              picker = "<leader>zp", manager = "<leader>zm",
+--              picker = "<leader>zp", manager = "<leader>zm", view = "<leader>zv",
 --              jump_prefix = "<leader>" },
 --   })
 --
@@ -12,6 +12,7 @@
 --   .next() / .prev()               下一个 / 上一个（循环）
 --   .goto_index(n)                  直跳第 n 个（<leader>1..9 的底层）
 --   .update_index(n)                用当前位置设置编号 n，不存在时按该编号创建
+--   .view()                         通知显示当前文件的位置列表
 --   require("waymark.picker").open()  搜索
 --   require("waymark.ui").open()      管理 popup
 --   require("waymark.store")          数据层（list/get/remove/rename/move/...）
@@ -24,7 +25,7 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager,jump_prefix} }，
+---@param opts table|nil { keys = {add,prev,next,picker,manager,view,jump_prefix} }，
 ---单项设 false 可禁用该键；jump_prefix 生成 <prefix>1..9 的普通模式跳转 / 可视模式更新键
 function M.setup(opts)
   opts = opts or {}
@@ -34,6 +35,7 @@ function M.setup(opts)
     next = "]z",
     picker = "<leader>zp",
     manager = "<leader>zm",
+    view = "<leader>zv",
     jump_prefix = "<leader>",
   }, opts.keys or {})
 
@@ -55,6 +57,7 @@ function M.setup(opts)
   map(keys.manager, function()
     require("waymark.ui").open()
   end, "Waymark manager")
+  map(keys.view, M.view, "Waymark current file")
 
   if keys.jump_prefix then -- <prefix>1..9 → 普通模式跳转，可视模式更新第 N 个
     for d = 1, 9 do
@@ -105,6 +108,30 @@ function M.add()
   else
     vim.notify(("Waymark already exists: %s:%d"):format(tail, line))
   end
+end
+
+---通过一条通知显示当前文件的 Waymark（编号、最新行列、标签）。
+function M.view()
+  local file = store.buf_path(0)
+  if not file then
+    vim.notify("[waymark] 当前 buffer 没有关联文件", vim.log.levels.INFO)
+    return
+  end
+  store.ensure_loaded()
+  store.pull_buffer(0)
+  local lines = {}
+  for _, loc in ipairs(store.list()) do
+    if loc.file == file then
+      local label = (loc.label or ""):gsub("[\r\n]", " ")
+      lines[#lines + 1] = ("%d  %d:%d%s"):format(loc.index, loc.line, loc.col, label ~= "" and ("  " .. label) or "")
+    end
+  end
+  if #lines == 0 then
+    vim.notify("[waymark] 当前文件没有 Waymark", vim.log.levels.INFO)
+    return
+  end
+  table.insert(lines, 1, "[waymark] " .. vim.fs.basename(file))
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
 function M.next()

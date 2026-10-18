@@ -26,6 +26,7 @@
 | `V` 后按 `<leader>1..9` | 将指定编号设置为所选行的光标位置；该编号为空时直接创建，并退出可视模式 |
 | `<leader>zp` | Snacks picker 搜索位置（`<C-d>` 删除） |
 | `<leader>zm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `r` 重命名 · `J`/`K` 排序 · `U` 填补编号空缺 · `q` 关闭 |
+| `<leader>zv` | 用一条通知显示当前文件的所有位置（编号、行:列、标签） |
 
 例如，即使列表为空，按 `V` 再按 `<leader>5`，也会直接设置编号 **5**，之后在普通模式按 `<leader>5` 即可跳回该位置，1-4 可以保持为空。设置已有编号会保留 ID，以新行文本刷新标签；不同编号可以指向同一个位置。变更和指定编号会立即保存。可视模式更新使用当前光标位置（多行选择也一样）。
 
@@ -45,7 +46,7 @@
     keys = {
       add = "<leader>x",  -- 修改添加键
       picker = false,     -- 禁用 picker 键，需要时用 :lua require("waymark.picker").open()
-      -- prev / next / manager 同理
+      -- prev / next / manager / view 同理
       jump_prefix = false, -- 禁用数字直跳和可视模式更新；也可换成其他前缀，如 "g"
     },
   },
@@ -77,6 +78,7 @@
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
 require("waymark").update_index(n) -- 用当前位置创建或更新指定编号 n
+require("waymark").view() -- 通知显示当前文件的位置列表，使用最新行列
 require("waymark.store"):list/get/get_index/set_index/add/update/remove/rename/move/compact/save
 ```
 
