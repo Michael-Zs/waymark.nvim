@@ -23,13 +23,14 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `<leader>zz` | Add current position using the lowest free number (duplicate positions are skipped) |
 | `<leader>zq` / `<leader>zw` / `<leader>ze` / `<leader>zr` | Select the independent `q` / `w` / `e` / `r` mark set |
 | `[z` / `]z` | Previous / next mark (across files, wraps around) |
-| `<leader>1..9` | Jump directly to mark 1-9 (jumps immediately on keypress) |
+| `<leader>1..9` | Open the file for mark 1-9, restoring that file's previous cursor position |
+| `<leader>!@#$%^&*(` (Shift+1..9) | Jump precisely to the marked location |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
 | `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `C` clear current set · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
 | `<leader>zv` | Show only the current file's marks in one notification (number, line:column, label) |
 
-For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. You can then press `<leader>5` in Normal mode to jump back to it. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
+For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. In Normal mode, `<leader>5` opens its file at your previous cursor position; press `<leader>%` (Shift+5) to jump back to the mark's exact location. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
 
 Deleting a mark leaves its number free without renumbering the others. The manager and picker show the actual numbers, and previous/next navigation skips empty numbers. `J`/`K` in the manager reorder marks between occupied numbers.
 
@@ -58,7 +59,8 @@ All keymaps live in the plugin's `setup()` and are overridden via the `keys` tab
       add = "<leader>x",  -- change the add key
       picker = false,     -- disable the picker key; open it via :lua require("waymark.picker").open()
       -- prev / next / manager / view work the same way
-      jump_prefix = false, -- disable numeric jumps and Visual updates; or use another prefix, e.g. "g"
+      open_prefix = false, -- disable <prefix>1..9 file opens
+      jump_prefix = false, -- disable Shift+number precise jumps and Visual updates; or use another prefix, e.g. "g"
       symbol_q = "<leader>zq", -- symbol_w / symbol_e / symbol_r work the same way; false disables a key
     },
   },

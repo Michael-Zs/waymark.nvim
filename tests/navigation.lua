@@ -26,6 +26,10 @@ local function eq(actual, expected)
   assert(vim.deep_equal(actual, expected), "expected " .. vim.inspect(expected) .. ", got " .. vim.inspect(actual))
 end
 
+local function canonical(path)
+  return vim.fn.resolve(vim.fn.fnamemodify(path, ":p"))
+end
+
 local function flush()
   local done = false
   vim.schedule(function()
@@ -63,6 +67,24 @@ test("explicit jumps position immediately and remain stable after deferred callb
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
   flush()
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
+end)
+
+test("opening a mark's file restores its previous cursor instead of the mark position", function()
+  vim.cmd.edit(file)
+  vim.api.nvim_win_set_cursor(0, { 72, 5 })
+  vim.cmd.enew()
+  assert(navigation.open_index(1))
+  eq(canonical(vim.api.nvim_buf_get_name(0)), canonical(file))
+  eq(vim.api.nvim_win_get_cursor(0), { 72, 5 })
+end)
+
+test("opening a mark's file still works when its buffer has not been loaded", function()
+  local fresh = tmp .. "/fresh.txt"
+  vim.fn.writefile(lines, fresh)
+  local loc = { file = fresh, line = 30, col = 4 }
+  assert(navigation.open_file(loc))
+  eq(canonical(vim.api.nvim_buf_get_name(0)), canonical(fresh))
+  eq(vim.api.nvim_win_get_cursor(0), { 1, 0 })
 end)
 
 test("subsequent cursor movement is not overwritten by an earlier jump", function()
@@ -131,7 +153,7 @@ test("picker confirmation jumps in the original window", function()
   local source = confirm()
   flush()
   eq(vim.api.nvim_get_current_win(), source)
-  eq(vim.api.nvim_buf_get_name(0), file)
+  eq(canonical(vim.api.nvim_buf_get_name(0)), canonical(file))
   eq(vim.api.nvim_win_get_cursor(0), { 30, 3 })
 end)
 

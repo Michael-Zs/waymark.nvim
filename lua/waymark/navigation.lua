@@ -13,28 +13,46 @@ end
 ---Jump to a location. Notify and return false if its file is missing.
 ---@param loc table
 ---@return boolean ok
-function M.jump(loc)
-  if not store.file_exists(loc.file) then
-    store.notify("File not found: " .. loc.file, vim.log.levels.WARN)
-    return false
+local function open_file(file)
+  if not store.file_exists(file) then
+    store.notify("File not found: " .. file, vim.log.levels.WARN)
+    return nil
   end
 
-  -- Reuse a loaded buffer, or open the file in the current window.
+  -- Reuse a loaded buffer, or open the file in the current window. Switching
+  -- buffers this way preserves the window's remembered view/cursor position.
   local buf
+  local target = vim.fn.resolve(vim.fn.fnamemodify(file, ":p"))
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b) == loc.file then
+    local name = vim.api.nvim_buf_get_name(b)
+    if name ~= "" and vim.fn.resolve(vim.fn.fnamemodify(name, ":p")) == target then
       buf = b
       break
     end
   end
   if not buf then
-    vim.cmd("keepjumps edit " .. vim.fn.fnameescape(loc.file))
+    vim.cmd("keepjumps edit " .. vim.fn.fnameescape(file))
     buf = vim.api.nvim_get_current_buf()
   else
     vim.api.nvim_win_set_buf(0, buf)
   end
 
-  store.sync_buffer(buf) -- Attach extmarks when reopening a file.
+  store.sync_buffer(buf)
+  return buf
+end
+
+---Open a location's file without moving to its marked position.
+---@param loc table
+---@return boolean ok
+function M.open_file(loc)
+  return open_file(loc.file) ~= nil
+end
+
+function M.jump(loc)
+  local buf = open_file(loc.file)
+  if not buf then
+    return false
+  end
 
   -- Prefer the latest extmark position after edits; fall back to the saved position.
   local line, col = loc.line, loc.col
@@ -70,6 +88,7 @@ function M.jump(loc)
   end)
   return true
 end
+
 
 ---Find the cursor's list index: exact file/line/column match, then nearest line in the same file.
 ---The caller falls back to the previous step's index if no match is found.
@@ -139,6 +158,27 @@ function M.goto_index(n)
     end
   end
   return M.jump(loc)
+end
+
+---Open the file for Waymark number n without moving to its saved location.
+---@param n integer
+---@return boolean ok
+function M.open_index(n)
+  n = math.floor(tonumber(n) or 0)
+  store.ensure_loaded()
+  local locs = store.list()
+  local loc = store.get_index(n)
+  if not loc then
+    store.notify(("No Waymark %d (%d marks in this set)"):format(n, #locs), vim.log.levels.WARN)
+    return false
+  end
+  for i, entry in ipairs(locs) do
+    if entry.id == loc.id then
+      last_indices[context()] = i
+      break
+    end
+  end
+  return M.open_file(loc)
 end
 
 return M

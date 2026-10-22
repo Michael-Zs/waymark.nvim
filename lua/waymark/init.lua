@@ -4,7 +4,7 @@
 --   require("waymark").setup({
 --     keys = { add = "<leader>zz", prev = "[z", next = "]z",
 --              picker = "<leader>zp", manager = "<leader>zm", view = "<leader>zv",
---              jump_prefix = "<leader>" },
+--              open_prefix = "<leader>", jump_prefix = "<leader>" },
 --   })
 --
 -- Public API:
@@ -26,8 +26,8 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager,view,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r} }
----Set a key to false to disable it; jump_prefix maps <prefix>1..9 to Normal jumps / Visual updates.
+---@param opts table|nil { keys = {add,prev,next,picker,manager,view,open_prefix,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r} }
+---Set a key to false to disable it; open_prefix maps <prefix>1..9 to file opens, while jump_prefix maps <prefix>!@#$%^&* to precise jumps.
 function M.setup(opts)
   opts = opts or {}
   local keys = vim.tbl_extend("force", {
@@ -37,6 +37,7 @@ function M.setup(opts)
     picker = "<leader>zp",
     manager = "<leader>zm",
     view = "<leader>zv",
+    open_prefix = "<leader>",
     jump_prefix = "<leader>",
     symbol_q = "<leader>zq",
     symbol_w = "<leader>zw",
@@ -69,9 +70,18 @@ function M.setup(opts)
     end, "Waymark select [" .. symbol .. "]")
   end
 
-  if keys.jump_prefix then -- <prefix>1..9 jumps in Normal mode and updates the number in Visual mode.
+  if keys.open_prefix then
     for d = 1, 9 do
-      map(keys.jump_prefix .. d, function()
+      map(keys.open_prefix .. d, function()
+        navigation.open_index(d)
+      end, "Waymark open file #" .. d)
+    end
+  end
+
+  if keys.jump_prefix then -- Shift+number symbols are !@#$%^&*( on a US keyboard.
+    local shifted_digits = { "!", "@", "#", "$", "%", "^", "&", "*", "(" }
+    for d, key in ipairs(shifted_digits) do
+      map(keys.jump_prefix .. key, function()
         navigation.goto_index(d)
       end, "Waymark jump #" .. d)
       map(keys.jump_prefix .. d, function()
