@@ -20,9 +20,10 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 
 | Key | Action |
 |---|---|
-| `<leader>zz` | Add current position using the lowest free number (duplicate positions are skipped) |
-| `<leader>zq` / `<leader>zw` / `<leader>ze` / `<leader>zr` | Select the independent `q` / `w` / `e` / `r` mark set |
-| `[z` / `]z` | Previous / next mark (across files, wraps around) |
+| `<leader>zz` | Add current position to the current set using the lowest free number (duplicate positions are skipped) |
+| `<leader>zq` / `<leader>zw` / `<leader>ze` / `<leader>zr` | Select the `q` / `w` / `e` / `r` set and add the current position |
+| `[z` / `]z` | Previous / next mark in the current set (across files, wraps around) |
+| `<leader>[q` / `<leader>]q` | Select the `q` set and jump to its previous / next mark (`w` / `e` / `r` work the same way) |
 | `<leader>1..9` | Open the file for mark 1-9, restoring that file's previous cursor position |
 | `<leader>!@#$%^&*(` (Shift+1..9) | Jump precisely to the marked location |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
@@ -40,7 +41,7 @@ Press uppercase `C` in the manager to clear all marks in the current set across 
 
 ### Independent mark sets
 
-Each project has four sets, identified by the symbols **q**, **w**, **e**, and **r**. Select one with `<leader>zq`, `<leader>zw`, `<leader>ze`, or `<leader>zr`. Each set has its own marks, numbering, labels, and navigation history. Adding, updating, deleting, reordering, and jumping all operate on the selected set.
+Each project has four sets, identified by the symbols **q**, **w**, **e**, and **r**. `<leader>zq`, `<leader>zw`, `<leader>ze`, and `<leader>zr` select the corresponding set and add the current position. `<leader>[q` / `<leader>]q` select `q` and jump to its previous / next mark; replace `q` with `w`, `e`, or `r` for the other sets. The target becomes the current set, even when it is empty. Subsequent `<leader>zz` and `[z` / `]z` operate on that set. To select a set without adding or jumping, use `require("waymark").select_symbol("q")`. Each set has its own marks, numbering, labels, and navigation history. Updating, deleting, reordering, and numbered jumps all operate on the selected set.
 
 Only the selected set appears in the gutter, manager, picker, and `<leader>zv` notification. Manager and picker titles include the symbol and refresh when you switch sets; switching to an empty set closes the open list. Notifications include the current symbol, for example `[waymark:w] Waymark 1 added: main.lua:42`.
 
@@ -61,7 +62,10 @@ All keymaps live in the plugin's `setup()` and are overridden via the `keys` tab
       -- prev / next / manager / view work the same way
       open_prefix = false, -- disable <prefix>1..9 file opens
       jump_prefix = false, -- disable Shift+number precise jumps and Visual updates; or use another prefix, e.g. "g"
-      symbol_q = "<leader>zq", -- symbol_w / symbol_e / symbol_r work the same way; false disables a key
+      symbol_q = "<leader>zq", -- select q and add; symbol_w / symbol_e / symbol_r work the same way
+      prev_q = "<leader>[q",   -- select q and jump back; prev_w / prev_e / prev_r work the same way
+      next_q = "<leader>]q",   -- select q and jump forward; next_w / next_e / next_r work the same way
+      -- Set any of these keys to false to disable it.
     },
   },
   config = function(_, opts)
@@ -91,6 +95,7 @@ The `WaymarkSign` highlight group defaults to `Special`. Signs use priority 20 a
 
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
+require("waymark").add("w") / .next("w") / .prev("w") -- select a set, then add or navigate
 require("waymark").update_index(n) -- create or update exactly number n with the current position
 require("waymark").select_symbol("w") -- select q / w / e / r; returns true on success
 require("waymark").current_symbol() -- selected symbol for the current project

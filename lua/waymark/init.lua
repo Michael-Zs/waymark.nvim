@@ -8,8 +8,8 @@
 --   })
 --
 -- Public API:
---   require("waymark").add()         Add the current position.
---   .next() / .prev()                Next / previous mark, wrapping around.
+--   require("waymark").add(symbol?)  Add the current position, optionally selecting a set first.
+--   .next(symbol?) / .prev(symbol?)  Next / previous mark, optionally selecting a set first.
 --   .goto_index(n)                   Jump to number n (used by <leader>1..9).
 --   .update_index(n)                 Set number n to the current position, creating it if empty.
 --   .view()                          Notify the current file's marks.
@@ -26,7 +26,7 @@ local M = {}
 M.store = store
 M.navigation = navigation
 
----@param opts table|nil { keys = {add,prev,next,picker,manager,view,open_prefix,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r} }
+---@param opts table|nil { keys = {add,prev,next,picker,manager,view,open_prefix,jump_prefix,symbol_q,symbol_w,symbol_e,symbol_r,prev_q,next_q,...} }
 ---Set a key to false to disable it; open_prefix maps <prefix>1..9 to file opens, while jump_prefix maps <prefix>!@#$%^&* to precise jumps.
 function M.setup(opts)
   opts = opts or {}
@@ -43,6 +43,14 @@ function M.setup(opts)
     symbol_w = "<leader>zw",
     symbol_e = "<leader>ze",
     symbol_r = "<leader>zr",
+    prev_q = "<leader>[q",
+    next_q = "<leader>]q",
+    prev_w = "<leader>[w",
+    next_w = "<leader>]w",
+    prev_e = "<leader>[e",
+    next_e = "<leader>]e",
+    prev_r = "<leader>[r",
+    next_r = "<leader>]r",
   }, opts.keys or {})
 
   store.init()
@@ -66,8 +74,14 @@ function M.setup(opts)
   map(keys.view, M.view, "Waymark current file")
   for _, symbol in ipairs({ "q", "w", "e", "r" }) do
     map(keys["symbol_" .. symbol], function()
-      M.select_symbol(symbol)
-    end, "Waymark select [" .. symbol .. "]")
+      M.add(symbol)
+    end, "Waymark add [" .. symbol .. "]")
+    map(keys["prev_" .. symbol], function()
+      M.previous(symbol)
+    end, "Waymark prev [" .. symbol .. "]")
+    map(keys["next_" .. symbol], function()
+      M.next(symbol)
+    end, "Waymark next [" .. symbol .. "]")
   end
 
   if keys.open_prefix then
@@ -109,8 +123,9 @@ function M.setup(opts)
   })
 end
 
----Add the current position (<leader>zz).
-function M.add()
+---Add the current position (<leader>zz), optionally selecting a set first.
+---@param symbol? string
+function M.add(symbol)
   store.ensure_loaded()
   local file = store.buf_path(0)
   if not file then
@@ -119,6 +134,9 @@ function M.add()
   end
   local line, col0 = unpack(vim.api.nvim_win_get_cursor(0))
   local label = store.make_label(vim.api.nvim_get_current_line())
+  if symbol ~= nil and not store.select_symbol(symbol) then
+    return
+  end
 
   local loc, created = store.add(file, line, col0 + 1, label)
 
@@ -167,13 +185,23 @@ function M.select_symbol(symbol)
   return true
 end
 
-function M.next()
+---@param symbol? string
+function M.next(symbol)
+  if symbol ~= nil and not store.select_symbol(symbol) then
+    return
+  end
   navigation.next()
 end
 
-function M.previous()
+---@param symbol? string
+function M.previous(symbol)
+  if symbol ~= nil and not store.select_symbol(symbol) then
+    return
+  end
   navigation.previous()
 end
+
+M.prev = M.previous
 
 ---Jump to Waymark number n (1-based, as shown in notifications / manager; gaps are allowed).
 function M.goto_index(n)

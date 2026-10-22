@@ -51,12 +51,12 @@ local function test(name, fn)
   tests[#tests + 1] = { name, fn }
 end
 
-test("four keymaps select independent numbers, hide inactive signs, and preserve edit tracking", function()
+test("four sets have independent numbers, hide inactive signs, and preserve edit tracking", function()
   eq(wm.current_symbol(), "q")
   store.set_index(5, file, 2, 1, "q only")
   eq(gutter(2), "5")
   for _, symbol in ipairs({ "w", "e", "r" }) do
-    press(" z" .. symbol)
+    wm.select_symbol(symbol)
     eq(wm.current_symbol(), symbol)
     eq(#store.list(), 0)
     eq(gutter(2), "")
@@ -66,18 +66,18 @@ test("four keymaps select independent numbers, hide inactive signs, and preserve
   end
   vim.api.nvim_buf_set_lines(0, 0, 0, false, { "inserted" })
   eq(gutter(5), "1")
-  press(" zq")
+  wm.select_symbol("q")
   eq(store.get_index(5).line, 3)
   eq(gutter(3), "5")
   eq(gutter(5), "")
-  press(" 5")
+  press(" %")
   eq(vim.api.nvim_win_get_cursor(0), { 3, 0 })
-  press(" zw")
+  wm.select_symbol("w")
   eq(store.get_index(1).line, 5)
   eq(store.get_index(5), nil)
   store.rename(store.get_index(1).id, "w renamed")
   store.compact()
-  press(" zq")
+  wm.select_symbol("q")
   eq(store.get_index(5).label, "q only")
 end)
 
@@ -123,14 +123,14 @@ test("notifications include the selected symbol and only list its marks in the c
     messages[#messages + 1] = message
   end
   local ok, err = pcall(function()
-    press(" zw")
+    wm.select_symbol("w")
     wm.view()
     assert(messages[1]:find("[waymark:w]", 1, true))
     assert(messages[2]:find("w renamed", 1, true))
     assert(not messages[2]:find("q only", 1, true))
     wm.add()
     assert(messages[3]:find("[waymark:w]", 1, true))
-    press(" zq")
+    wm.select_symbol("q")
     wm.view()
     assert(messages[#messages]:find("[waymark:q]", 1, true))
     assert(not messages[#messages]:find("w renamed", 1, true))
@@ -144,14 +144,14 @@ test("switching sets refreshes an open manager immediately and deletions stay is
   ui.open()
   assert(vim.api.nvim_win_get_config(0).title[1][1]:find("[q]", 1, true))
   assert(vim.api.nvim_get_current_line():find("q only", 1, true))
-  press(" ze")
+  wm.select_symbol("e")
   eq(ui.is_open(), true)
   assert(vim.api.nvim_win_get_config(0).title[1][1]:find("[e]", 1, true))
   assert(vim.api.nvim_get_current_line():find("e only", 1, true))
   press("dd")
   eq(ui.is_open(), false)
   eq(#store.list(), 0)
-  press(" zq")
+  wm.select_symbol("q")
   eq(store.get_index(5).label, "q only")
 end)
 
@@ -305,16 +305,93 @@ test("legacy v2 data migrates to q with sparse numbers and labels preserved", fu
   eq(wm.current_symbol(), "w")
 end)
 
-test("set selection keymaps can be customized or disabled", function()
+test("targeted add and navigation keys select each set and current-set keys follow it", function()
+  eq(store.buf_path(0), file)
+  for _, symbol in ipairs({ "q", "w", "e", "r" }) do
+    wm.select_symbol(symbol)
+    store.clear()
+  end
+  for _, symbol in ipairs({ "q", "w", "e", "r" }) do
+    wm.select_symbol(symbol == "q" and "r" or "q")
+    vim.api.nvim_win_set_cursor(0, { 2, 1 })
+    press(" z" .. symbol)
+    eq(wm.current_symbol(), symbol)
+    eq(#store.list(), 1)
+    eq({ store.get_index(1).line, store.get_index(1).col }, { 2, 2 })
+    press(" z" .. symbol)
+    eq(#store.list(), 1)
+    vim.api.nvim_win_set_cursor(0, { 6, 0 })
+    press(" zz")
+    eq(#store.list(), 2)
+    eq(store.get_index(2).line, 6)
+  end
+  for _, symbol in ipairs({ "q", "w", "e", "r" }) do
+    wm.select_symbol(symbol == "q" and "r" or "q")
+    vim.api.nvim_win_set_cursor(0, { 2, 1 })
+    press(" ]" .. symbol)
+    eq(wm.current_symbol(), symbol)
+    eq(vim.api.nvim_win_get_cursor(0), { 6, 0 })
+    press("]z")
+    eq(vim.api.nvim_win_get_cursor(0), { 2, 1 })
+    press("[z")
+    eq(vim.api.nvim_win_get_cursor(0), { 6, 0 })
+    wm.select_symbol(symbol == "q" and "r" or "q")
+    press(" [" .. symbol)
+    eq(wm.current_symbol(), symbol)
+    eq(vim.api.nvim_win_get_cursor(0), { 2, 1 })
+    eq(#store.list(), 2)
+  end
+  store.clear()
+  wm.select_symbol("q")
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  press(" ]r")
+  eq(wm.current_symbol(), "r")
+  eq(vim.api.nvim_win_get_cursor(0), cursor)
+  eq(#store.list(), 0)
+  local path = vim.fn.stdpath("data") .. "/waymark/" .. vim.fn.sha256(store.project_root()):sub(1, 16) .. ".json"
+  local saved = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
+  eq(saved.active_symbol, "r")
+  eq(#saved.symbols.q, 2)
+  eq(#saved.symbols.r, 0)
+end)
+
+test("targeted add and navigation keymaps can be customized or disabled", function()
   for _, symbol in ipairs({ "q", "w", "e", "r" }) do
     vim.keymap.del("n", " z" .. symbol)
+    vim.keymap.del("n", " [" .. symbol)
+    vim.keymap.del("n", " ]" .. symbol)
   end
-  wm.setup({ keys = { symbol_q = "gq", symbol_w = false, symbol_e = false, symbol_r = false } })
+  wm.setup({ keys = {
+    symbol_q = "gq",
+    symbol_w = false,
+    symbol_e = false,
+    symbol_r = false,
+    prev_q = "g[",
+    prev_w = false,
+    prev_e = false,
+    prev_r = false,
+    next_q = "g]",
+    next_w = false,
+    next_e = false,
+    next_r = false,
+  } })
   for _, symbol in ipairs({ "q", "w", "e", "r" }) do
     eq(vim.fn.maparg(" z" .. symbol, "n"), "")
+    eq(vim.fn.maparg(" [" .. symbol, "n"), "")
+    eq(vim.fn.maparg(" ]" .. symbol, "n"), "")
   end
+  vim.api.nvim_win_set_cursor(0, { 8, 0 })
   press("gq")
   eq(wm.current_symbol(), "q")
+  eq(store.get_index(3).line, 8)
+  wm.select_symbol("w")
+  press("g[")
+  eq(wm.current_symbol(), "q")
+  eq(vim.api.nvim_win_get_cursor(0), { 6, 0 })
+  wm.select_symbol("w")
+  press("g]")
+  eq(wm.current_symbol(), "q")
+  eq(vim.api.nvim_win_get_cursor(0), { 8, 0 })
 end)
 
 local failures = 0

@@ -1,3 +1,4 @@
 - [ ] in manager page, add shortcuts to use number(1-9) to jump
 - [ ] save the main key separately for different tabs
 - [x] use <leader>num to just go to file, not the precise location(just like return to a buffer, cursor on the last place), which is helpful for usual editing, and use <leader>shift num to go to the precise location
+- [x] use <leader>zz to add to current, but use <leader>zq to add to q, also [/]z for current ,but <leader>[/]q for q list(the q can also replaced by wer)
