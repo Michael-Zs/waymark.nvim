@@ -5,7 +5,9 @@
 --   <CR>     Jump and close.
 --   dd       Delete the current entry.
 --   C        Clear the current set.
---   r        Rename the label.
+--   R        Rename the label.
+--   s        Save a named snapshot of the current set.
+--   l        Select and load a snapshot into the current set.
 --   J / K    Swap with the next / previous entry.
 --   U        Renumber consecutively from 1, filling gaps.
 --   q / Esc  Close.
@@ -56,7 +58,7 @@ local function render()
     end
   end
   if #lines == 0 then
-    lines[1] = " No waymarks — s: save, r: load, q: close"
+    lines[1] = " No waymarks — s: save, l: load, q: close"
   end
 
   vim.bo[buf].modifiable = true
@@ -239,12 +241,6 @@ function M.open()
   if M.is_open() then
     M.close()
   end
-  local locs = store.list()
-  if #locs == 0 then
-    store.notify("No marks in this set; use <leader>zz to add a position", vim.log.levels.INFO)
-    return
-  end
-
   prev_win = vim.api.nvim_get_current_win()
   buf = vim.api.nvim_create_buf(false, true)
   vim.bo[buf].buftype = "nofile"
@@ -287,7 +283,7 @@ function M.open()
   end, "clear current set")
   map("R", rename_current, "rename")
   map("s", save_snapshot, "save snapshot")
-  map("r", load_snapshot, "load snapshot")
+  map("l", load_snapshot, "load snapshot")
   map("J", function()
     move_current(1)
   end, "move down")

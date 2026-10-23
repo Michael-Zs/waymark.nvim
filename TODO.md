@@ -2,5 +2,5 @@
 - [ ] save the main key separately for different tabs
 - [x] use <leader>num to just go to file, not the precise location(just like return to a buffer, cursor on the last place), which is helpful for usual editing, and use <leader>shift num to go to the precise location
 - [x] use <leader>zz to add to current, but use <leader>zq to add to q, also [/]z for current ,but <leader>[/]q for q list(the q can also replaced by wer)
-- [x] can save and load waymarks. do this in the manager(so when there's no marks, I should can also open the manager). and use s to save, and pop up to enter name. use r to load, and use picker to select. (so where should the files be saved and loaded? where's the current location to save?)
+- [x] can save and load waymarks. do this in the manager(so when there's no marks, I should can also open the manager). and use s to save, and pop up to enter name. use l to load, and use picker to select. (so where should the files be saved and loaded? where's the current location to save?)
 - [ ] add a comment function
