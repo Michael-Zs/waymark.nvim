@@ -56,8 +56,8 @@ function M.current_symbol()
   return state.symbol
 end
 
-function M.notify(message, level)
-  vim.notify(("[waymark:%s] %s"):format(state.symbol, message), level)
+function M.notify(message, level, symbol)
+  vim.notify(("[waymark:%s] %s"):format(symbol or state.symbol, message), level)
 end
 
 function M.file_exists(path)
@@ -242,7 +242,14 @@ local function detach_extmark(loc)
 end
 
 local function sign_options(loc)
-  if M.get(loc.id) ~= loc then
+  local active = false
+  for _, current in ipairs(state.symbols[state.symbol] or {}) do
+    if current.id == loc.id then
+      active = true
+      break
+    end
+  end
+  if not active then
     return {}
   end
   return {
@@ -422,6 +429,44 @@ function M.add(file, line, col, label)
     index = index + 1
   end
   return M.set_index(index, file, line, col, label)
+end
+
+---Add a location to a specific set without changing the active set.
+---@return table|nil location
+---@return boolean created
+function M.add_to_symbol(symbol, file, line, col, label)
+  M.ensure_loaded()
+  local locations = state.symbols[symbol]
+  if not locations then
+    M.notify("Unknown set: " .. tostring(symbol), vim.log.levels.WARN)
+    return nil, false
+  end
+  local active = state.locations
+  state.locations = locations
+  local ok, loc, created = pcall(M.add, file, line, col, label)
+  state.locations = active
+  if not ok then
+    error(loc)
+  end
+  return loc, created
+end
+
+---Run an operation against a set without changing the active set.
+function M.with_symbol(symbol, callback)
+  M.ensure_loaded()
+  local locations = state.symbols[symbol]
+  if not locations then
+    M.notify("Unknown set: " .. tostring(symbol), vim.log.levels.WARN)
+    return false
+  end
+  local active = state.locations
+  state.locations = locations
+  local ok, result = pcall(callback)
+  state.locations = active
+  if not ok then
+    error(result)
+  end
+  return result
 end
 
 ---Update a location and label, preserving its stable ID / order and moving its extmark to the current buffer.

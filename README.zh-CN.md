@@ -21,9 +21,10 @@
 | 键 | 功能 |
 |---|---|
 | `<leader>zz` | 用最小空闲编号将当前位置添加到当前分组（重复位置不重复添加） |
-| `<leader>zq` / `<leader>zw` / `<leader>ze` / `<leader>zr` | 切换到 `q` / `w` / `e` / `r` 分组，并添加当前位置 |
+| `<leader>zq` / `<leader>zw` / `<leader>ze` / `<leader>zr` | 将当前位置添加到 `q` / `w` / `e` / `r` 分组，不切换当前分组 |
+| `<leader>zQ` / `<leader>zW` / `<leader>zE` / `<leader>zR` | 切换当前分组到 `q` / `w` / `e` / `r`，不添加标记 |
 | `[z` / `]z` | 当前分组的上一个 / 下一个位置（跨文件，首尾循环） |
-| `<leader>[q` / `<leader>]q` | 切换到 `q` 分组并跳到上一个 / 下一个位置（`w` / `e` / `r` 同理） |
+| `<leader>[q` / `<leader>]q` | 在 `q` 分组中跳到上一个 / 下一个位置，不切换当前分组（`w` / `e` / `r` 同理） |
 | `<leader>1..9` | 打开第 1-9 个位置对应的文件，并恢复该文件上次的光标位置 |
 | `<leader>!@#$%^&*(`（Shift+1..9） | 精确跳转到标记位置 |
 | `V` 后按 `<leader>1..9` | 将指定编号设置为所选行的光标位置；该编号为空时直接创建，并退出可视模式 |
@@ -41,7 +42,7 @@
 
 ### 独立标记分组
 
-每个项目有 **q、w、e、r** 四个分组。`<leader>zq`、`<leader>zw`、`<leader>ze`、`<leader>zr` 会切换到对应分组并添加当前位置。`<leader>[q` / `<leader>]q` 会切换到 `q` 分组并跳到上一个 / 下一个位置，将 `q` 换成 `w`、`e`、`r` 即可操作其他组。目标组会成为当前分组，即使它为空；之后的 `<leader>zz` 和 `[z` / `]z` 都操作该组。只想切换、不添加或跳转时，可调用 `require("waymark").select_symbol("q")`。各组拥有独立的位置、编号、标签和导航记录，更新、删除、排序和数字跳转都作用于当前分组。
+每个项目有 **q、w、e、r** 四个分组。`<leader>zq`、`<leader>zw`、`<leader>ze`、`<leader>zr` 会将当前位置添加到对应分组，但不会改变当前分组；`<leader>zQ`、`<leader>zW`、`<leader>zE`、`<leader>zR` 只切换当前分组，不添加标记。`<leader>[q` / `<leader>]q` 只在 `q` 分组中导航，不切换当前分组，将 `q` 换成 `w`、`e`、`r` 即可操作其他组。各组拥有独立的位置、编号、标签和导航记录，更新、删除、排序和数字跳转都作用于当前分组。
 
 gutter、manager、picker 和 `<leader>zv` 通知只显示当前分组。manager 和 picker 标题包含当前分组标识，切换时立即刷新；切到空分组会关闭已打开的列表。所有通知也会带上当前标识，例如 `[waymark:w] Waymark 1 added: main.lua:42`。
 
@@ -62,7 +63,8 @@ gutter、manager、picker 和 `<leader>zv` 通知只显示当前分组。manager
       -- prev / next / manager / view 同理
       open_prefix = false, -- 禁用 <prefix>1..9 打开文件
       jump_prefix = false, -- 禁用 Shift+数字精确跳转和可视模式更新；也可换成其他前缀，如 "g"
-      symbol_q = "<leader>zq", -- 切换到 q 并添加；symbol_w / symbol_e / symbol_r 同理
+      symbol_q = "<leader>zq", -- 添加到 q 但不切换；symbol_w / symbol_e / symbol_r 同理
+      select_q = "<leader>zQ", -- 切换到 q；select_w / select_e / select_r 同理
       prev_q = "<leader>[q",   -- 切换到 q 并跳到上一个；prev_w / prev_e / prev_r 同理
       next_q = "<leader>]q",   -- 切换到 q 并跳到下一个；next_w / next_e / next_r 同理
       -- 以上键位均可设为 false 来禁用。
@@ -95,7 +97,7 @@ gutter、manager、picker 和 `<leader>zv` 通知只显示当前分组。manager
 
 ```lua
 require("waymark").add() / .next() / .prev() / .goto_index(n)
-require("waymark").add("w") / .next("w") / .prev("w") -- 切换到指定分组，再添加或导航
+require("waymark").add("w") -- 添加到 w 但不切换；.next("w") / .prev("w") 在 w 中导航但不切换
 require("waymark").update_index(n) -- 用当前位置创建或更新指定编号 n
 require("waymark").select_symbol("w") -- 选择 q / w / e / r，成功返回 true
 require("waymark").current_symbol() -- 当前项目选中的分组标识

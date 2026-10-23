@@ -6,8 +6,8 @@ local M = {}
 
 local last_indices = {} -- Track the previous step independently for each project / set.
 
-local function context()
-  return store.project_root() .. ":" .. store.current_symbol()
+local function context(symbol)
+	return store.project_root() .. ":" .. (symbol or store.current_symbol())
 end
 
 ---Jump to a location. Notify and return false if its file is missing.
@@ -116,7 +116,7 @@ local function current_index()
 end
 
 ---Step through the list with wraparound. delta = 1 (next) / -1 (previous).
-function M.step(delta)
+local function step(delta, symbol)
   store.ensure_loaded()
   local locs = store.list()
   local n = #locs
@@ -125,10 +125,20 @@ function M.step(delta)
     return
   end
   store.pull_extmarks()
-  local cur = current_index() or last_indices[context()] or 0
+  local key = context(symbol)
+  local cur = current_index() or last_indices[key] or 0
   local idx = math.floor((cur - 1 + delta) % n) + 1 -- Lua's modulo provides wraparound.
-  last_indices[context()] = idx
+  last_indices[key] = idx
   M.jump(locs[idx])
+end
+
+function M.step(delta, symbol)
+  if symbol then
+    return store.with_symbol(symbol, function()
+      step(delta, symbol)
+    end)
+  end
+  return step(delta)
 end
 
 function M.next()
