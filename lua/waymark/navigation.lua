@@ -129,7 +129,10 @@ local function step(delta, symbol)
   local cur = current_index() or last_indices[key] or 0
   local idx = math.floor((cur - 1 + delta) % n) + 1 -- Lua's modulo provides wraparound.
   last_indices[key] = idx
-  M.jump(locs[idx])
+  local loc = locs[idx]
+  if M.jump(loc) then
+    store.notify(("Waymark %d: %s:%d"):format(loc.index, vim.fs.basename(loc.file), loc.line), vim.log.levels.INFO, symbol)
+  end
 end
 
 function M.step(delta, symbol)

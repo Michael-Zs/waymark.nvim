@@ -359,6 +359,42 @@ test("targeted add and navigation leave the active set unchanged", function()
   eq(#saved.symbols.r, 2)
 end)
 
+test("current and targeted navigation notify the set symbol and mark number", function()
+  local notify = vim.notify
+  local messages = {}
+  vim.notify = function(message)
+    messages[#messages + 1] = message
+  end
+  local ok, err = pcall(function()
+    wm.select_symbol("q")
+    store.clear()
+    local first = store.set_index(4, file, 2, 1, "first")
+    store.set_index(9, file, 6, 1, "second")
+    wm.select_symbol("w")
+    store.clear()
+    store.set_index(2, file, 4, 1, "other set")
+
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    press("]z")
+    assert(messages[#messages]:find("[waymark:w] Waymark 2: source.txt:4", 1, true))
+
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    press(" ]q")
+    eq(wm.current_symbol(), "w")
+    eq(vim.api.nvim_win_get_cursor(0), { 6, 0 })
+    assert(messages[#messages]:find("[waymark:q] Waymark 9: source.txt:6", 1, true))
+
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    press(" [q")
+    eq(wm.current_symbol(), "w")
+    eq(vim.api.nvim_win_get_cursor(0), { 6, 0 })
+    assert(messages[#messages]:find("[waymark:q] Waymark 9: source.txt:6", 1, true))
+    store.remove(first.id)
+  end)
+  vim.notify = notify
+  assert(ok, err)
+end)
+
 test("targeted add, select, and navigation keymaps can be customized or disabled", function()
   for _, symbol in ipairs({ "q", "w", "e", "r" }) do
     vim.keymap.del("n", " z" .. symbol)
