@@ -55,6 +55,9 @@ local function render()
       })
     end
   end
+  if #lines == 0 then
+    lines[1] = " No waymarks — s: save, r: load, q: close"
+  end
 
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
@@ -113,10 +116,6 @@ end
 
 local function refresh()
   local n = render()
-  if n == 0 then
-    M.close()
-    return
-  end
   clamp_cursor()
   local cfg = win_config(n, content_width())
   vim.api.nvim_win_set_config(win, cfg)
@@ -157,6 +156,33 @@ local function rename_current()
   }, function(input)
     if type(input) == "string" then
       store.rename(loc.id, vim.trim(input))
+    end
+    M.open()
+  end)
+end
+
+local function save_snapshot()
+  M.close()
+  vim.ui.input({ prompt = "Save waymarks as: " }, function(name)
+    if name and vim.trim(name) ~= "" then
+      local ok, err = store.save_snapshot(name)
+      store.notify(ok and ("Saved waymarks as " .. vim.trim(name)) or err, ok and vim.log.levels.INFO or vim.log.levels.WARN)
+    end
+    M.open()
+  end)
+end
+
+local function load_snapshot()
+  local names = store.list_snapshots()
+  if #names == 0 then
+    store.notify("No saved waymark snapshots for this project", vim.log.levels.INFO)
+    return
+  end
+  M.close()
+  vim.ui.select(names, { prompt = "Load waymark snapshot:" }, function(name)
+    if name then
+      local ok, err = store.load_snapshot(name)
+      store.notify(ok and ("Loaded waymarks: " .. name) or err, ok and vim.log.levels.INFO or vim.log.levels.WARN)
     end
     M.open()
   end)
@@ -259,7 +285,9 @@ function M.open()
     M.close()
     store.notify(("Cleared the current set (removed %d marks)"):format(count), vim.log.levels.INFO)
   end, "clear current set")
-  map("r", rename_current, "rename")
+  map("R", rename_current, "rename")
+  map("s", save_snapshot, "save snapshot")
+  map("r", load_snapshot, "load snapshot")
   map("J", function()
     move_current(1)
   end, "move down")

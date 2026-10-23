@@ -29,7 +29,7 @@ A lightweight location list where the basic unit is a **file + exact cursor posi
 | `<leader>!@#$%^&*(` (Shift+1..9) | Jump precisely to the marked location |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
 | `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
-| `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `C` clear current set · `r` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
+| `<leader>zm` | Popup manager: `<CR>` jump · `dd` delete · `C` clear current set · `s` save snapshot · `r` load snapshot · `R` rename · `J`/`K` reorder · `U` fill numbering gaps · `q` close |
 | `<leader>zv` | Show only the current file's marks in one notification (number, line:column, label) |
 
 For example, press `V` then `<leader>5` to set mark **5**, even when the list is empty. In Normal mode, `<leader>5` opens its file at your previous cursor position; press `<leader>%` (Shift+5) to jump back to the mark's exact location. Numbers 1-4 can stay empty. Setting an existing number keeps its ID and refreshes its label from the new line; different numbers may point to the same position. Changes are saved immediately, including the chosen number. Visual updates use the current cursor position (also for multi-line selections).
@@ -39,6 +39,8 @@ Deleting a mark leaves its number free without renumbering the others. The manag
 Press uppercase `U` in the manager to renumber all marks consecutively from 1 in their current order, e.g. **1, 3, 5 → 1, 2, 3**. The new numbers are saved immediately, and the cursor stays on the same entry.
 
 Press uppercase `C` in the manager to clear all marks in the current set across all files. The manager closes, gutter signs are removed, and the empty set is saved immediately. The notification includes the current symbol and the number of removed marks.
+
+In the manager, press `s` to save the current set under a name, or `r` to choose and load a saved snapshot. Loading replaces only the selected set. Snapshots are stored per project at `stdpath("data")/waymark/snapshots/<project-hash>/<name>.json`. The manager can be opened even when the current set is empty.
 
 ### Independent mark sets
 
@@ -87,7 +89,7 @@ The `WaymarkSign` highlight group defaults to `Special`. Signs use priority 20 a
 ## Design
 
 - **Project-local**: root is `vim.fs.root(0, {".git"})` with `cwd` fallback; one JSON file per project
-- **Persistence**: `stdpath("data")/waymark/<sha256(root)>.json`, version 3 with `active_symbol` and `symbols = { q, w, e, r }`; each set contains `{ id, index, file, line, col, label }` entries
+- **Persistence**: `stdpath("data")/waymark/<sha256(root)>.json`, version 3 with `active_symbol` and `symbols = { q, w, e, r }`; named snapshots are in `stdpath("data")/waymark/snapshots/<sha256(root)>/`; each set contains `{ id, index, file, line, col, label }` entries
   (absolute file path, 1-based number/line/col, ids are stable and unaffected by reordering; version 1/2 data migrates into `q` with its original numbering)
 - **Follows code movement**: extmarks track insertions/deletions at runtime, and the latest positions are written back before save/jump
 - **Fault tolerant**: corrupted JSON, missing files, etc. only affect a single location; invalid entries show `[missing]` in the picker/manager and can be deleted

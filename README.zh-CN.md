@@ -29,7 +29,7 @@
 | `<leader>!@#$%^&*(`（Shift+1..9） | 精确跳转到标记位置 |
 | `V` 后按 `<leader>1..9` | 将指定编号设置为所选行的光标位置；该编号为空时直接创建，并退出可视模式 |
 | `<leader>zp` | Snacks picker 搜索位置（`<C-d>` 删除） |
-| `<leader>zm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `C` 清空当前分组 · `r` 重命名 · `J`/`K` 排序 · `U` 填补编号空缺 · `q` 关闭 |
+| `<leader>zm` | Popup 管理：`<CR>` 跳转 · `dd` 删除 · `C` 清空当前分组 · `s` 保存快照 · `r` 加载快照 · `R` 重命名 · `J`/`K` 排序 · `U` 填补编号空缺 · `q` 关闭 |
 | `<leader>zv` | 用一条通知显示当前文件的所有位置（编号、行:列、标签） |
 
 例如，即使列表为空，按 `V` 再按 `<leader>5`，也会直接设置编号 **5**。普通模式下，`<leader>5` 会在上次光标位置打开对应文件；按 `<leader>%`（Shift+5）可精确跳回标记位置，1-4 可以保持为空。设置已有编号会保留 ID，以新行文本刷新标签；不同编号可以指向同一个位置。变更和指定编号会立即保存。可视模式更新使用当前光标位置（多行选择也一样）。
@@ -39,6 +39,8 @@
 在 manager 中按大写 `U`，会按当前顺序将所有条目从 1 连续编号，例如 **1、3、5 → 1、2、3**。新编号立即保存，光标仍停留在同一条目上。
 
 在 manager 中按大写 `C`，会清空当前分组在所有文件中的标记，关闭 manager、移除 gutter 编号并立即保存。通知显示当前分组标识及删除数量。
+
+在 manager 中按 `s` 可将当前分组保存为命名快照，按 `r` 可选择并加载快照；加载只会替换当前分组。快照按项目保存在 `stdpath("data")/waymark/snapshots/<项目哈希>/<名称>.json`。当前分组为空时也可以打开 manager。
 
 ### 独立标记分组
 
@@ -87,7 +89,7 @@ gutter、manager、picker 和 `<leader>zv` 通知只显示当前分组。manager
 ## 设计
 
 - **project-local**：`vim.fs.root(0, {".git"})`，fallback `cwd`；每个 project 一个 JSON 文件
-- **持久化**：`stdpath("data")/waymark/<sha256(root)>.json`，版本 3 保存 `active_symbol` 和 `symbols = { q, w, e, r }`，各组条目结构为 `{ id, index, file, line, col, label }`
+- **持久化**：`stdpath("data")/waymark/<sha256(root)>.json`，版本 3 保存 `active_symbol` 和 `symbols = { q, w, e, r }`；命名快照位于 `stdpath("data")/waymark/snapshots/<sha256(root)>/`，各组条目结构为 `{ id, index, file, line, col, label }`
   （file 绝对路径，编号及 line/col 1-based，id 稳定不随排序变化；版本 1/2 数据迁入 `q`，保留原来的编号）
 - **代码移动跟随**：运行时用 extmark 跟随插入/删除，保存/跳转前回写最新位置
 - **容错**：JSON 损坏、文件缺失等只影响单条 location，失效项在 picker/manager 中显示 `[missing]`，可删除

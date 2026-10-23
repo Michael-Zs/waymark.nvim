@@ -15,6 +15,7 @@
 --   Runtime extmarks follow code edits; their positions are pulled back before persistence.
 
 local M = {}
+local detach_extmark
 
 local DATA_DIR = vim.fn.stdpath("data") .. "/waymark"
 local ns = vim.api.nvim_create_namespace("waymark")
@@ -66,6 +67,14 @@ end
 
 local function data_file(root)
   return ("%s/%s.json"):format(DATA_DIR, vim.fn.sha256(root):sub(1, 16))
+end
+
+local function snapshot_dir(root)
+  return ("%s/snapshots/%s"):format(DATA_DIR, vim.fn.sha256(root):sub(1, 16))
+end
+
+local function snapshot_path(name)
+  return snapshot_dir(state.root) .. "/" .. name .. ".json"
 end
 
 local function new_id()
@@ -216,6 +225,87 @@ function M.save()
   end
 end
 
+---Save the currently selected set as a named snapshot.
+function M.save_snapshot(name)
+  M.ensure_loaded()
+  name = vim.trim(name or "")
+  if name == "" or name:find("[/\\]") or name == "." or name == ".." then
+    return false, "Snapshot name must be non-empty and cannot contain path separators"
+  end
+  M.pull_extmarks()
+  local payload = { version = 1, root = state.root, symbol = state.symbol, locations = {} }
+  for i, loc in ipairs(state.locations) do
+    payload.locations[i] = {
+      index = loc.index, file = loc.file, line = loc.line, col = loc.col, label = loc.label,
+    }
+  end
+  local ok, encoded = pcall(vim.json.encode, payload)
+  if not ok then
+    return false, tostring(encoded)
+  end
+  local dir = snapshot_dir(state.root)
+  vim.fn.mkdir(dir, "p")
+  local path = snapshot_path(name)
+  local wrote, err = pcall(function()
+    local f = assert(io.open(path, "w"))
+    f:write(encoded, "\n")
+    f:close()
+  end)
+  if not wrote then
+    return false, tostring(err)
+  end
+  return true, path
+end
+
+---List named snapshots for the current project.
+function M.list_snapshots()
+  M.ensure_loaded()
+  local dir = snapshot_dir(state.root)
+  local names = {}
+  for _, path in ipairs(vim.fn.glob(dir .. "/*.json", false, true)) do
+    names[#names + 1] = vim.fn.fnamemodify(path, ":t:r")
+  end
+  table.sort(names)
+  return names
+end
+
+---Replace the current set with a named snapshot, preserving other sets.
+function M.load_snapshot(name)
+  M.ensure_loaded()
+  if type(name) ~= "string" or name == "" or name:find("[/\\]") then
+    return false, "Invalid snapshot name"
+  end
+  local path = snapshot_path(name)
+  local f = io.open(path, "r")
+  if not f then
+    return false, "Snapshot not found: " .. name
+  end
+  local content = f:read("*a")
+  f:close()
+  local ok, data = pcall(vim.json.decode, content)
+  if not ok or type(data) ~= "table" or type(data.locations) ~= "table" then
+    return false, "Invalid snapshot: " .. name
+  end
+  M.pull_extmarks()
+  for _, loc in ipairs(state.locations) do
+    detach_extmark(loc)
+  end
+  local locations = sanitize_locations(data.locations)
+  for _, loc in ipairs(locations) do
+    for _, existing in ipairs(locations) do
+      if existing ~= loc and existing.id == loc.id then
+        loc.id = new_id()
+        break
+      end
+    end
+  end
+  state.symbols[state.symbol] = locations
+  state.locations = locations
+  M.sync_all_buffers()
+  M.save()
+  return true
+end
+
 ---Ensure the current project is loaded; save the previous project before switching roots.
 function M.ensure_loaded()
   local root = M.project_root()
@@ -234,7 +324,7 @@ end
 -- Runtime extmark tracking
 --==========================================================================
 
-local function detach_extmark(loc)
+detach_extmark = function(loc)
   if loc.ext and vim.api.nvim_buf_is_valid(loc.ext.buf) then
     pcall(vim.api.nvim_buf_del_extmark, loc.ext.buf, ns, loc.ext.id)
   end
