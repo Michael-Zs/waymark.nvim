@@ -264,6 +264,7 @@ function M.open()
   local n = render()
   local cfg = win_config(n, content_width())
   win = vim.api.nvim_open_win(buf, true, cfg)
+  vim.cmd.stopinsert()
   vim.wo[win].cursorline = true
   vim.wo[win].wrap = false
   vim.wo[win].number = false

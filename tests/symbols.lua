@@ -488,8 +488,13 @@ test("snapshots support default-name save, overwrite existing (S), and picker pr
   assert(save_picker)
   assert(save_picker.opts.title:find("Save Waymarks [q]", 1, true))
   eq(#save_picker.opts.items, 2)
-  assert(save_picker.opts.items[1].preview.text:find("snap mark", 1, true))
+  local list_lines = vim.api.nvim_buf_get_lines(save_picker.list.win.buf, 0, 2, false)
+  assert(list_lines[1]:find("alpha  (1 mark)", 1, true), vim.inspect(list_lines))
+  assert(list_lines[2]:find("beta  (1 mark)", 1, true), vim.inspect(list_lines))
+  local preview_lines = vim.api.nvim_buf_get_lines(save_picker.preview.win.buf, 0, 2, false)
+  assert(preview_lines[1]:find("snap mark", 1, true), vim.inspect(preview_lines))
   save_picker.opts.confirm(save_picker, save_picker.opts.items[1]) -- overwrite "alpha"
+  flush()
   flush()
   eq(store.current_snapshot(), "alpha")
   eq(store.read_snapshot("alpha")[1].label, "updated in q")
@@ -507,12 +512,15 @@ test("snapshots support default-name save, overwrite existing (S), and picker pr
   end
   load_picker.opts.actions.snapshot_rename(load_picker, load_picker.opts.items[2]) -- rename "beta" -> "gamma"
   flush()
+  flush()
   eq(prompts[#prompts].default, "beta")
   eq(store.list_snapshots(), { "alpha", "gamma" })
 
   local renamed_picker = require("snacks").picker.get()[1]
   assert(renamed_picker)
   eq(renamed_picker.opts.items[2].snapshot, "gamma")
+  local renamed_lines = vim.api.nvim_buf_get_lines(renamed_picker.list.win.buf, 0, 2, false)
+  assert(renamed_lines[2]:find("gamma  (1 mark)", 1, true), vim.inspect(renamed_lines))
   renamed_picker.opts.actions.snapshot_delete(renamed_picker, renamed_picker.opts.items[2]) -- delete "gamma"
   flush()
   eq(store.list_snapshots(), { "alpha" })
@@ -520,7 +528,10 @@ test("snapshots support default-name save, overwrite existing (S), and picker pr
   local after_del_picker = require("snacks").picker.get()[1]
   assert(after_del_picker)
   eq(#after_del_picker.opts.items, 1)
+  local after_del_lines = vim.api.nvim_buf_get_lines(after_del_picker.list.win.buf, 0, 2, false)
+  assert(after_del_lines[1]:find("alpha  (1 mark)", 1, true), vim.inspect(after_del_lines))
   after_del_picker:close()
+  flush()
   flush()
   eq(ui.is_open(), true)
   ui.close()
@@ -534,6 +545,7 @@ test("snapshots support default-name save, overwrite existing (S), and picker pr
   local w_picker = require("snacks").picker.get()[1]
   assert(w_picker)
   w_picker.opts.confirm(w_picker, w_picker.opts.items[1])
+  flush()
   flush()
   eq(store.current_snapshot("w"), "alpha")
   eq(store.get_index(3).label, "updated in q")

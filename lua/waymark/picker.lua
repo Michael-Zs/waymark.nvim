@@ -229,18 +229,35 @@ function M.snapshots(opts)
     return
   end
 
-  local items = {}
-  for i, name in ipairs(names) do
-    items[i] = snapshot_entry(name)
-  end
-
   local reopening = false
   local title = action == "save" and (" Save Waymarks [" .. store.current_symbol() .. "] ")
     or (" Waymark Snapshots [" .. store.current_symbol() .. "] ")
 
+  local function build_items()
+    local current_names = store.list_snapshots()
+    local list = {}
+    for i, name in ipairs(current_names) do
+      list[i] = snapshot_entry(name)
+    end
+    if active_picker then
+      active_picker.opts.items = list
+    end
+    return list
+  end
+
+  local initial_items = build_items()
+
   active_picker = Snacks.picker({
     title = title,
-    items = items,
+    items = initial_items,
+    finder = build_items,
+    format = function(item)
+      local count = #item.locations
+      return {
+        { item.snapshot, "SnacksPickerLabel" },
+        { ("  (%d %s)"):format(count, count == 1 and "mark" or "marks"), "SnacksPickerComment" },
+      }
+    end,
     preview = "preview",
     confirm = function(picker, item)
       picker:norm(function()
@@ -267,7 +284,12 @@ function M.snapshots(opts)
     end,
     on_close = function()
       if not reopening and on_done then
-        vim.schedule(on_done)
+        vim.schedule(function()
+          vim.schedule(function()
+            vim.cmd.stopinsert()
+            on_done()
+          end)
+        end)
       end
     end,
     actions = {
@@ -281,11 +303,8 @@ function M.snapshots(opts)
           deleted and vim.log.levels.INFO or vim.log.levels.WARN
         )
         if deleted and #store.list_snapshots() > 0 then
-          reopening = true
-          picker:close()
-          vim.schedule(function()
-            M.snapshots(opts)
-          end)
+          picker.opts.items = build_items()
+          picker:find({ refresh = true })
         else
           picker:close()
         end
