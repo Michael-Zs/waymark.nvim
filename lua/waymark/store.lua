@@ -26,6 +26,7 @@ local state = {
   locations = {}, -- Dense location array sorted by index; empty slots are omitted.
   symbol = "q",
   symbols = {}, -- All sets keep extmarks; only the selected set displays signs.
+  snapshots = {}, -- Last saved / loaded snapshot name per set.
 }
 
 --==========================================================================
@@ -75,6 +76,17 @@ end
 
 local function snapshot_path(name)
   return snapshot_dir(state.root) .. "/" .. name .. ".json"
+end
+
+local function valid_snapshot_name(name)
+  if type(name) ~= "string" then
+    return nil, "Snapshot name must be non-empty and cannot contain path separators"
+  end
+  name = vim.trim(name)
+  if name == "" or name:find("[/\\]") or name == "." or name == ".." then
+    return nil, "Snapshot name must be non-empty and cannot contain path separators"
+  end
+  return name
 end
 
 local function new_id()
@@ -148,6 +160,7 @@ end
 function M.load()
   state.symbol = "q"
   state.symbols = {}
+  state.snapshots = {}
   for _, symbol in ipairs(symbols) do
     state.symbols[symbol] = {}
   end
@@ -225,12 +238,22 @@ function M.save()
   end
 end
 
+---Return the last saved or loaded snapshot name for the given or active set, if it still exists.
+function M.current_snapshot(symbol)
+  M.ensure_loaded()
+  local name = state.snapshots[symbol or state.symbol]
+  if name and M.file_exists(snapshot_path(name)) then
+    return name
+  end
+  return nil
+end
+
 ---Save the currently selected set as a named snapshot.
 function M.save_snapshot(name)
   M.ensure_loaded()
-  name = vim.trim(name or "")
-  if name == "" or name:find("[/\\]") or name == "." or name == ".." then
-    return false, "Snapshot name must be non-empty and cannot contain path separators"
+  local clean, name_err = valid_snapshot_name(name)
+  if not clean then
+    return false, name_err
   end
   M.pull_extmarks()
   local payload = { version = 1, root = state.root, symbol = state.symbol, locations = {} }
@@ -245,7 +268,7 @@ function M.save_snapshot(name)
   end
   local dir = snapshot_dir(state.root)
   vim.fn.mkdir(dir, "p")
-  local path = snapshot_path(name)
+  local path = snapshot_path(clean)
   local wrote, err = pcall(function()
     local f = assert(io.open(path, "w"))
     f:write(encoded, "\n")
@@ -254,6 +277,7 @@ function M.save_snapshot(name)
   if not wrote then
     return false, tostring(err)
   end
+  state.snapshots[state.symbol] = clean
   return true, path
 end
 
@@ -269,28 +293,38 @@ function M.list_snapshots()
   return names
 end
 
----Replace the current set with a named snapshot, preserving other sets.
-function M.load_snapshot(name)
+---Read and sanitize locations from a named snapshot without modifying active sets.
+function M.read_snapshot(name)
   M.ensure_loaded()
-  if type(name) ~= "string" or name == "" or name:find("[/\\]") then
-    return false, "Invalid snapshot name"
+  local clean = valid_snapshot_name(name)
+  if not clean then
+    return nil, "Invalid snapshot name"
   end
-  local path = snapshot_path(name)
+  local path = snapshot_path(clean)
   local f = io.open(path, "r")
   if not f then
-    return false, "Snapshot not found: " .. name
+    return nil, "Snapshot not found: " .. clean
   end
   local content = f:read("*a")
   f:close()
   local ok, data = pcall(vim.json.decode, content)
   if not ok or type(data) ~= "table" or type(data.locations) ~= "table" then
-    return false, "Invalid snapshot: " .. name
+    return nil, "Invalid snapshot: " .. clean
+  end
+  return sanitize_locations(data.locations)
+end
+
+---Replace the current set with a named snapshot, preserving other sets.
+function M.load_snapshot(name)
+  local clean = valid_snapshot_name(name)
+  local locations, err = M.read_snapshot(name)
+  if not locations then
+    return false, err
   end
   M.pull_extmarks()
   for _, loc in ipairs(state.locations) do
     detach_extmark(loc)
   end
-  local locations = sanitize_locations(data.locations)
   for _, loc in ipairs(locations) do
     for _, existing in ipairs(locations) do
       if existing ~= loc and existing.id == loc.id then
@@ -301,9 +335,67 @@ function M.load_snapshot(name)
   end
   state.symbols[state.symbol] = locations
   state.locations = locations
+  state.snapshots[state.symbol] = clean
   M.sync_all_buffers()
   M.save()
   return true
+end
+
+---Delete a named snapshot for the current project.
+function M.delete_snapshot(name)
+  M.ensure_loaded()
+  local clean = valid_snapshot_name(name)
+  if not clean then
+    return false, "Invalid snapshot name"
+  end
+  local path = snapshot_path(clean)
+  if not M.file_exists(path) then
+    return false, "Snapshot not found: " .. clean
+  end
+  local ok, err = vim.uv.fs_unlink(path)
+  if not ok then
+    return false, tostring(err)
+  end
+  for _, symbol in ipairs(symbols) do
+    if state.snapshots[symbol] == clean then
+      state.snapshots[symbol] = nil
+    end
+  end
+  return true
+end
+
+---Rename an existing snapshot for the current project without overwriting another snapshot.
+function M.rename_snapshot(old_name, new_name)
+  M.ensure_loaded()
+  local old_clean = valid_snapshot_name(old_name)
+  if not old_clean then
+    return false, "Invalid snapshot name"
+  end
+  local new_clean, name_err = valid_snapshot_name(new_name)
+  if not new_clean then
+    return false, name_err
+  end
+  local old_path = snapshot_path(old_clean)
+  if not M.file_exists(old_path) then
+    return false, "Snapshot not found: " .. old_clean
+  end
+  local new_path = snapshot_path(new_clean)
+  if new_clean == old_clean then
+    return true, new_path
+  end
+  if M.file_exists(new_path) then
+    return false, "Snapshot already exists: " .. new_clean
+  end
+  local ok, err = vim.uv.fs_rename(old_path, new_path)
+  if not ok then
+    return false, tostring(err)
+  end
+  for _, symbol in ipairs(symbols) do
+    if state.snapshots[symbol] == old_clean then
+      state.snapshots[symbol] = new_clean
+    end
+  end
+  return true, new_path
 end
 
 ---Ensure the current project is loaded; save the previous project before switching roots.

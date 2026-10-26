@@ -445,6 +445,104 @@ test("targeted add, select, and navigation keymaps can be customized or disabled
   eq(vim.api.nvim_win_get_cursor(0), { 8, 0 })
 end)
 
+test("snapshots support default-name save, overwrite existing (S), and picker preview/rename/delete/load", function()
+  local ui = require("waymark.ui")
+  wm.select_symbol("q")
+  store.clear()
+  store.set_index(3, file, 2, 1, "snap mark")
+  eq(store.current_snapshot(), nil)
+
+  -- Save via manager `s` and verify default name is remembered on next `s`
+  local orig_input = vim.ui.input
+  local prompts = {}
+  vim.ui.input = function(opts, on_confirm)
+    prompts[#prompts + 1] = opts
+    on_confirm(opts.default ~= "" and opts.default or "alpha")
+  end
+  ui.open()
+  press("s")
+  eq(prompts[1].default, "")
+  eq(store.current_snapshot(), "alpha")
+  eq(store.list_snapshots(), { "alpha" })
+  eq(ui.is_open(), true)
+
+  -- Second `s` pre-fills "alpha"
+  press("s")
+  eq(prompts[2].default, "alpha")
+  ui.close()
+
+  -- Create another snapshot "beta"
+  assert(store.save_snapshot("beta"))
+  eq(store.current_snapshot(), "beta")
+  eq(store.list_snapshots(), { "alpha", "beta" })
+  local beta_locs = store.read_snapshot("beta")
+  eq(#beta_locs, 1)
+  eq(beta_locs[1].label, "snap mark")
+
+  -- Modify current set and use `S` in manager to overwrite "alpha"
+  store.rename(store.get_index(3).id, "updated in q")
+  ui.open()
+  press("S")
+  flush()
+  local save_picker = require("snacks").picker.get()[1]
+  assert(save_picker)
+  assert(save_picker.opts.title:find("Save Waymarks [q]", 1, true))
+  eq(#save_picker.opts.items, 2)
+  assert(save_picker.opts.items[1].preview.text:find("snap mark", 1, true))
+  save_picker.opts.confirm(save_picker, save_picker.opts.items[1]) -- overwrite "alpha"
+  flush()
+  eq(store.current_snapshot(), "alpha")
+  eq(store.read_snapshot("alpha")[1].label, "updated in q")
+  eq(ui.is_open(), true)
+
+  -- Open snapshot picker via `l` in manager, rename "beta" -> "gamma", delete "gamma", then load "alpha" into w
+  press("l")
+  flush()
+  local load_picker = require("snacks").picker.get()[1]
+  assert(load_picker)
+  assert(load_picker.opts.title:find("Waymark Snapshots [q]", 1, true))
+  vim.ui.input = function(opts, on_confirm)
+    prompts[#prompts + 1] = opts
+    on_confirm("gamma")
+  end
+  load_picker.opts.actions.snapshot_rename(load_picker, load_picker.opts.items[2]) -- rename "beta" -> "gamma"
+  flush()
+  eq(prompts[#prompts].default, "beta")
+  eq(store.list_snapshots(), { "alpha", "gamma" })
+
+  local renamed_picker = require("snacks").picker.get()[1]
+  assert(renamed_picker)
+  eq(renamed_picker.opts.items[2].snapshot, "gamma")
+  renamed_picker.opts.actions.snapshot_delete(renamed_picker, renamed_picker.opts.items[2]) -- delete "gamma"
+  flush()
+  eq(store.list_snapshots(), { "alpha" })
+
+  local after_del_picker = require("snacks").picker.get()[1]
+  assert(after_del_picker)
+  eq(#after_del_picker.opts.items, 1)
+  after_del_picker:close()
+  flush()
+  eq(ui.is_open(), true)
+  ui.close()
+
+  -- Switch to set w and load "alpha"
+  wm.select_symbol("w")
+  store.clear()
+  ui.open()
+  press("l")
+  flush()
+  local w_picker = require("snacks").picker.get()[1]
+  assert(w_picker)
+  w_picker.opts.confirm(w_picker, w_picker.opts.items[1])
+  flush()
+  eq(store.current_snapshot("w"), "alpha")
+  eq(store.get_index(3).label, "updated in q")
+  eq(ui.is_open(), true)
+  ui.close()
+
+  vim.ui.input = orig_input
+end)
+
 local failures = 0
 for _, case in ipairs(tests) do
   local ok, err = xpcall(case[2], debug.traceback)

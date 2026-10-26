@@ -7,7 +7,8 @@
 --   C        Clear the current set.
 --   R        Rename the label.
 --   s        Save a named snapshot of the current set.
---   l        Select and load a snapshot into the current set.
+--   S        Overwrite an existing snapshot with the current set.
+--   l        Select and load (or rename/delete) a snapshot.
 --   J / K    Swap with the next / previous entry.
 --   U        Renumber consecutively from 1, filling gaps.
 --   q / Esc  Close.
@@ -58,7 +59,7 @@ local function render()
     end
   end
   if #lines == 0 then
-    lines[1] = " No waymarks — s: save, l: load, q: close"
+    lines[1] = " No waymarks — s/S: save, l: load, q: close"
   end
 
   vim.bo[buf].modifiable = true
@@ -164,14 +165,29 @@ local function rename_current()
 end
 
 local function save_snapshot()
+  local default = store.current_snapshot() or ""
   M.close()
-  vim.ui.input({ prompt = "Save waymarks as: " }, function(name)
+  vim.ui.input({ prompt = "Save waymarks as: ", default = default }, function(name)
     if name and vim.trim(name) ~= "" then
       local ok, err = store.save_snapshot(name)
       store.notify(ok and ("Saved waymarks as " .. vim.trim(name)) or err, ok and vim.log.levels.INFO or vim.log.levels.WARN)
     end
     M.open()
   end)
+end
+
+local function save_existing_snapshot()
+  local names = store.list_snapshots()
+  if #names == 0 then
+    store.notify("No saved waymark snapshots for this project", vim.log.levels.INFO)
+    return
+  end
+  M.close()
+  require("waymark.picker").snapshots({
+    action = "save",
+    fallback_select = true,
+    on_done = M.open,
+  })
 end
 
 local function load_snapshot()
@@ -181,13 +197,11 @@ local function load_snapshot()
     return
   end
   M.close()
-  vim.ui.select(names, { prompt = "Load waymark snapshot:" }, function(name)
-    if name then
-      local ok, err = store.load_snapshot(name)
-      store.notify(ok and ("Loaded waymarks: " .. name) or err, ok and vim.log.levels.INFO or vim.log.levels.WARN)
-    end
-    M.open()
-  end)
+  require("waymark.picker").snapshots({
+    action = "load",
+    fallback_select = true,
+    on_done = M.open,
+  })
 end
 
 local function move_current(delta)
@@ -283,6 +297,7 @@ function M.open()
   end, "clear current set")
   map("R", rename_current, "rename")
   map("s", save_snapshot, "save snapshot")
+  map("S", save_existing_snapshot, "save to existing snapshot")
   map("l", load_snapshot, "load snapshot")
   map("J", function()
     move_current(1)

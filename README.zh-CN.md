@@ -41,7 +41,7 @@
 | `<leader>1..9` | 打开第 1-9 个位置对应的文件，并恢复该文件上次的光标位置 |
 | `<leader>!@#$%^&*(`（Shift+1..9） | 精确跳转到标记位置 |
 | `V` 后按 `<leader>1..9` | 将指定编号设置为所选行的光标位置；该编号为空时直接创建，并退出可视模式 |
-| `<leader>zp` | Snacks picker 搜索位置（`<C-d>` 删除） |
+| `<leader>zp` | Snacks picker 搜索位置（`<C-d>`/`dd` 删除，`<C-r>`/`R` 重命名） |
 | `<leader>zm` | 打开当前分组的 [manager](#manager) |
 | `<leader>zv` | 用一条通知显示当前文件的所有位置（编号、行:列、标签） |
 
@@ -72,21 +72,27 @@
 | `R` | 编辑选中标记的标签，输入空内容可清除标签 |
 | `J` / `K` | 将选中标记与下一条 / 上一条交换，保留编号空缺 |
 | `U` | 将当前分组从 1 连续编号，例如 **1、3、5 → 1、2、3** |
-| `s` | 将当前分组保存为命名快照 |
-| `l` | 选择快照并加载到当前分组 |
+| `s` | 将当前分组保存为命名快照（自动预填上次保存/加载的快照名） |
+| `S` | 选择已有快照并用当前分组覆盖保存 |
+| `l` | 打开快照 picker 预览、加载、重命名（`<C-r>`/`R`）或删除（`<C-d>`/`dd`）快照 |
 | `q` / `<Esc>` | 关闭 manager |
 
 修改会自动保存。排序和重新编号后，光标仍停留在同一条目上。删除最后一个标记会关闭 manager；分组为空时也可以重新打开以加载快照。
 
-### 保存与加载快照
+### 保存、加载与管理快照
 
-**保存：**按 `s`，输入名称（例如 `review`）并确认。快照记录当前分组的文件路径、最新位置、标签和编号。同名保存会覆盖已有快照。名称不能包含 `/` 或 `\`。
+**保存（`s`）：**按 `s`，输入名称（例如 `review`）并确认。如果当前分组最近保存或加载过某个快照，输入框会自动预填该名称，直接按 `<CR>` 即可原位更新。快照记录当前分组的文件路径、最新位置、标签和编号。同名保存会覆盖已有快照。名称不能包含 `/` 或 `\`。
 
-**加载：**按 `l` 并选择名称。选择器列出当前项目的快照，同一项目的四个分组共享这些快照。加载会**替换当前分组**，保留快照中的编号，其他分组不受影响。例如，可以将 `q` 的快照加载到 `w`，只需先切换到 `w`。
+**保存到已有快照（`S`）：**按 `S` 从快照列表中选择一个已有快照，直接将当前分组覆盖保存到该文件。
 
-输入或选择结束后（包括取消），manager 会重新打开。没有快照时，按 `l` 会显示通知。
+**加载与管理（`l`）：**按 `l` 打开快照 picker（右侧实时预览快照内的标记列表）：
+- `<CR>`：将该快照加载到当前分组（替换当前分组，保留快照中的编号，其他分组不受影响）。
+- `<C-r>`（插入/普通模式）或 `R`（普通模式）：重命名选中的快照。
+- `<C-d>`（插入/普通模式）或 `dd`（普通模式）：删除选中的快照文件。
 
-保存使用 `vim.ui.input`，加载使用 `vim.ui.select`，外观取决于你的 Neovim UI 配置。搜索单个标记的 picker（`<leader>zp`）使用 Snacks。
+输入或选择结束后（包括取消），manager 会重新打开。没有快照时，按 `l` 或 `S` 会显示通知。
+
+保存使用 `vim.ui.input`；快照选择与管理使用 Snacks picker（未安装 Snacks 时回退到 `vim.ui.select`）。搜索单个标记的 picker（`<leader>zp`）同样使用 Snacks。
 
 自动保存与快照的文件位置见[存储位置](#存储位置)。
 
@@ -175,15 +181,20 @@ waymark.select_symbol("w")    -- 选择 q / w / e / r，成功返回 true
 waymark.current_symbol()     -- 当前项目选中的分组标识
 waymark.view()               -- 通知显示当前文件的位置列表，使用最新行列
 
-require("waymark.ui").open()     -- manager
-require("waymark.picker").open() -- Snacks 标记搜索 picker
+require("waymark.ui").open()          -- manager
+require("waymark.picker").open()      -- Snacks 标记搜索 picker
+require("waymark.picker").snapshots() -- Snacks 快照管理 picker（加载 / 重命名 / 删除）
 
 local store = waymark.store
-store.list()                  -- 当前分组的标记，按编号排序
-store.get_index(5)            -- 编号 5 的标记，编号为空时返回 nil
-store.save_snapshot("review") -- 成功返回 true, path；失败返回 false, error
-store.list_snapshots()        -- 当前项目的快照名称，已排序
-store.load_snapshot("review") -- 替换当前分组，返回 true 或 false, error
+store.list()                        -- 当前分组的标记，按编号排序
+store.get_index(5)                  -- 编号 5 的标记，编号为空时返回 nil
+store.current_snapshot()            -- 当前分组最近保存/加载的快照名，无则返回 nil
+store.save_snapshot("review")       -- 成功返回 true, path；失败返回 false, error
+store.list_snapshots()              -- 当前项目的快照名称，已排序
+store.read_snapshot("review")       -- 读取快照中的标记列表，失败返回 nil, error
+store.load_snapshot("review")       -- 替换当前分组，返回 true 或 false, error
+store.rename_snapshot("old", "new") -- 重命名快照，返回 true, path 或 false, error
+store.delete_snapshot("review")     -- 删除快照，返回 true 或 false, error
 ```
 
 `store.list()` 返回当前分组按 `loc.index` 排序、仅包含已有条目的连续数组；查询指定编号请使用 `store.get_index(n)`，该编号可能为空。数据修改仅作用于当前分组，`store.save()` 保存所有分组。切换分组会触发 `User WaymarkSymbolChanged` autocmd，可通过 `ev.data.symbol` 获取分组标识。

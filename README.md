@@ -41,7 +41,7 @@ These are Normal-mode mappings unless noted. `<leader>` uses your Neovim leader 
 | `<leader>1..9` | Open the file for mark 1-9, restoring that file's previous cursor position |
 | `<leader>!@#$%^&*(` (Shift+1..9) | Jump precisely to the marked location |
 | `V` then `<leader>1..9` | Set the chosen mark number to the selected line's cursor position, creating it if empty, then leave Visual mode |
-| `<leader>zp` | Search marks with Snacks picker (`<C-d>` to delete) |
+| `<leader>zp` | Search marks with Snacks picker (`<C-d>`/`dd` to delete, `<C-r>`/`R` to rename) |
 | `<leader>zm` | Open the [manager](#manager) for the current set |
 | `<leader>zv` | Show only the current file's marks in one notification (number, line:column, label) |
 
@@ -72,21 +72,27 @@ These keys apply inside the manager and are case-sensitive.
 | `R` | Edit the selected mark's label; an empty label clears it |
 | `J` / `K` | Swap the selected mark with the next / previous entry, preserving numbering gaps |
 | `U` | Renumber the current set consecutively from 1, e.g. **1, 3, 5 → 1, 2, 3** |
-| `s` | Save the current set as a named snapshot |
-| `l` | Choose a snapshot to load into the current set |
+| `s` | Save the current set as a named snapshot (pre-fills the active snapshot name if any) |
+| `S` | Select an existing snapshot to overwrite with the current set |
+| `l` | Open the snapshot picker to preview, load, rename (`<C-r>`/`R`), or delete (`<C-d>`/`dd`) snapshots |
 | `q` / `<Esc>` | Close the manager |
 
 Changes are saved automatically. Reordering and renumbering keep the cursor on the same entry. Deleting the last mark closes the manager; you can reopen it even when the set is empty to load a snapshot.
 
-### Save and load snapshots
+### Save, load, and manage snapshots
 
-**Save:** press `s`, enter a name such as `review`, and confirm. The snapshot captures the current set's file paths, latest positions, labels, and numbers. Saving with an existing name overwrites that snapshot. Names cannot contain `/` or `\`.
+**Save (`s`):** press `s`, enter a name such as `review`, and confirm. If the current set was recently saved to or loaded from a snapshot, its name is pre-filled so pressing `<CR>` updates it in place. The snapshot captures the current set's file paths, latest positions, labels, and numbers. Saving with an existing name overwrites that snapshot. Names cannot contain `/` or `\`.
 
-**Load:** press `l` and choose a name. The selector lists snapshots for the current project, shared across its four sets. Loading **replaces the current set**, preserves the saved numbers, and leaves the other sets intact. For example, a snapshot saved from `q` can be loaded into `w` after switching to `w`.
+**Save to existing (`S`):** press `S` to choose an existing snapshot from the picker and overwrite it with the current set.
 
-The manager reopens after the prompt or selector finishes, including cancellation. With no saved snapshots, `l` displays a notification.
+**Load and manage (`l`):** press `l` to open the snapshot picker (with a live preview of each snapshot's marks):
+- `<CR>`: load the selected snapshot into the current set (replaces the current set, preserves saved numbers, and leaves other sets intact).
+- `<C-r>` (Insert/Normal) or `R` (Normal): rename the selected snapshot.
+- `<C-d>` (Insert/Normal) or `dd` (Normal): delete the selected snapshot file.
 
-Saving uses `vim.ui.input`; loading uses `vim.ui.select`. Their appearance follows your Neovim UI configuration. The separate mark-search picker (`<leader>zp`) uses Snacks.
+The manager reopens after the prompt or picker finishes, including cancellation. With no saved snapshots, `l` and `S` display a notification.
+
+Saving uses `vim.ui.input`; snapshot selection and management use Snacks picker (falling back to `vim.ui.select` if Snacks is unavailable). The separate mark-search picker (`<leader>zp`) also uses Snacks.
 
 See [Storage](#storage) for where automatic saves and snapshots live.
 
@@ -175,15 +181,20 @@ waymark.select_symbol("w")    -- select q / w / e / r; returns true on success
 waymark.current_symbol()     -- selected symbol for the current project
 waymark.view()               -- notify the current file's marks with their latest positions
 
-require("waymark.ui").open()     -- manager
-require("waymark.picker").open() -- Snacks mark-search picker
+require("waymark.ui").open()          -- manager
+require("waymark.picker").open()      -- Snacks mark-search picker
+require("waymark.picker").snapshots() -- Snacks snapshot picker (load / rename / delete)
 
 local store = waymark.store
-store.list()                  -- marks in the selected set, sorted by number
-store.get_index(5)            -- mark 5, or nil if that slot is empty
-store.save_snapshot("review") -- returns true, path on success; false, error on failure
-store.list_snapshots()        -- sorted snapshot names for this project
-store.load_snapshot("review") -- replaces the current set; returns true or false, error
+store.list()                        -- marks in the selected set, sorted by number
+store.get_index(5)                  -- mark 5, or nil if that slot is empty
+store.current_snapshot()            -- last saved/loaded snapshot name for the active set, or nil
+store.save_snapshot("review")       -- returns true, path on success; false, error on failure
+store.list_snapshots()              -- sorted snapshot names for this project
+store.read_snapshot("review")       -- returns sanitized locations from snapshot, or nil, error
+store.load_snapshot("review")       -- replaces the current set; returns true or false, error
+store.rename_snapshot("old", "new") -- renames a snapshot; returns true, path or false, error
+store.delete_snapshot("review")     -- deletes a snapshot; returns true or false, error
 ```
 
 `store.list()` returns a dense array of the selected set's existing marks sorted by `loc.index`; use `store.get_index(n)` to look up a specific number, which may be empty. Store mutations affect only the selected set; `store.save()` saves all sets. Switching sets emits the `User WaymarkSymbolChanged` autocmd with `ev.data.symbol`.
